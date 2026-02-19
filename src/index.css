@@ -1,0 +1,182 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300;1,9..40,400&family=Playfair+Display:wght@600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Medical Blue + Teal Palette — All HSL */
+    --background: 210 40% 98%;
+    --foreground: 215 45% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 215 45% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 45% 12%;
+
+    /* Deep medical blue */
+    --primary: 215 68% 32%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Teal accent */
+    --secondary: 183 62% 40%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 210 30% 94%;
+    --muted-foreground: 215 20% 50%;
+
+    --accent: 183 70% 45%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 4 76% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 215 25% 88%;
+    --input: 215 25% 88%;
+    --ring: 183 62% 40%;
+
+    --radius: 0.75rem;
+
+    /* Custom Medora tokens */
+    --medical-blue: 215 68% 32%;
+    --medical-blue-light: 215 68% 92%;
+    --medical-teal: 183 62% 40%;
+    --medical-teal-light: 183 62% 93%;
+    --medical-cyan: 190 75% 50%;
+    --medical-green: 152 52% 42%;
+    --medical-green-light: 152 52% 93%;
+    --medical-amber: 38 90% 52%;
+    --medical-amber-light: 38 90% 93%;
+    --medical-red: 4 76% 55%;
+    --medical-red-light: 4 76% 93%;
+
+    --gradient-hero: linear-gradient(135deg, hsl(215, 68%, 28%) 0%, hsl(183, 62%, 35%) 100%);
+    --gradient-card: linear-gradient(145deg, hsl(0, 0%, 100%) 0%, hsl(210, 40%, 98%) 100%);
+    --gradient-ai: linear-gradient(135deg, hsl(190, 75%, 50%) 0%, hsl(215, 68%, 40%) 100%);
+
+    --shadow-card: 0 4px 24px -8px hsl(215 68% 32% / 0.12);
+    --shadow-elevated: 0 12px 40px -12px hsl(215 68% 32% / 0.22);
+    --shadow-glow: 0 0 32px hsl(183 62% 40% / 0.3);
+
+    --sidebar-background: 215 50% 18%;
+    --sidebar-foreground: 210 40% 92%;
+    --sidebar-primary: 183 62% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 215 50% 25%;
+    --sidebar-accent-foreground: 210 40% 92%;
+    --sidebar-border: 215 40% 28%;
+    --sidebar-ring: 183 62% 50%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-body antialiased;
+  }
+
+  h1, h2, h3 {
+    @apply font-heading;
+  }
+}
+
+@layer components {
+  /* AI Processing Pulse */
+  .ai-pulse {
+    animation: aiPulse 2s ease-in-out infinite;
+  }
+
+  .ai-scan-line {
+    animation: scanLine 2.5s linear infinite;
+  }
+
+  .processing-ring {
+    animation: processingRing 1.5s linear infinite;
+  }
+
+  /* Glassmorphism card */
+  .glass-card {
+    @apply bg-white/80 backdrop-blur-md border border-white/60;
+    box-shadow: var(--shadow-card);
+  }
+
+  /* Sidebar dark */
+  .sidebar-dark {
+    background: hsl(var(--sidebar-background));
+    color: hsl(var(--sidebar-foreground));
+  }
+
+  /* Stat card */
+  .stat-card {
+    @apply rounded-xl p-5 border;
+    box-shadow: var(--shadow-card);
+  }
+
+  /* Chat bubble */
+  .chat-bubble-user {
+    @apply rounded-2xl rounded-br-sm px-4 py-3 max-w-xs text-sm;
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+  }
+
+  .chat-bubble-ai {
+    @apply rounded-2xl rounded-bl-sm px-4 py-3 max-w-xs text-sm border;
+    background: hsl(var(--card));
+    color: hsl(var(--card-foreground));
+    box-shadow: var(--shadow-card);
+  }
+}
+
+@keyframes aiPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.03); }
+}
+
+@keyframes scanLine {
+  0% { transform: translateY(-100%); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translateY(400%); opacity: 0; }
+}
+
+@keyframes processingRing {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.5s ease-out forwards;
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.4s ease-out forwards;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--primary) / 0.4);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--primary) / 0.7);
+}
