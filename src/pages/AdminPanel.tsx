@@ -27,7 +27,7 @@ const users = [
 const monthlyStats = [65, 80, 72, 90, 85, 95, 88, 102, 98, 110, 125, 128];
 const months = ["M", "A", "M", "J", "J", "A", "S", "O", "N", "D", "J", "F"];
 
-export default function AdminPanel() {
+export default function AdminPanel({user}) {
   const [activeTab, setActiveTab] = useState<TabType>("overview");
   const [search, setSearch] = useState("");
   const [showAddDoctor, setShowAddDoctor] = useState(false);
@@ -43,7 +43,7 @@ export default function AdminPanel() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar role="admin" />
+      <Navbar user = {user} />
       <AIChatbot />
 
       <div className="container py-8">

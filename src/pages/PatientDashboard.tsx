@@ -25,7 +25,7 @@ const appointments = [
 const calendarDays = [20, 21, 22, 23, 24, 25, 26];
 const availableSlots = ["9:00 AM", "10:30 AM", "1:00 PM", "3:00 PM", "4:30 PM"];
 
-export default function PatientDashboard() {
+export default function PatientDashboard({user}) {
   const [activeTab, setActiveTab] = useState<TabType>("overview");
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
   const [uploadedFile, setUploadedFile] = useState<string | null>(null);
@@ -66,7 +66,7 @@ export default function PatientDashboard() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar role="patient" />
+      <Navbar user = {user} />
       <AIChatbot />
 
       <div className="container py-8">
@@ -74,7 +74,7 @@ export default function PatientDashboard() {
         <div className="rounded-2xl bg-gradient-hero p-6 mb-8 flex items-center justify-between">
           <div>
             <p className="text-primary-foreground/70 text-sm mb-1">Good morning,</p>
-            <h1 className="text-2xl font-heading font-bold text-primary-foreground">John Doe</h1>
+            <h1 className="text-2xl font-heading font-bold text-primary-foreground"> {user?.fullname} </h1>
             <p className="text-primary-foreground/70 text-sm mt-1">Your health score: <span className="text-medical-green font-semibold">87/100</span></p>
           </div>
           <div className="hidden sm:flex items-center gap-3">

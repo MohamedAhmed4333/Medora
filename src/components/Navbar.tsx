@@ -9,15 +9,31 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { signOut } from "firebase/auth";
+import { auth } from "../config/firebase";
 
-interface NavbarProps {
-  role?: "patient" | "doctor" | "admin" | null;
-}
+// interface NavbarProps {
+//   role?: "patient" | "doctor" | "admin" | null;
+// }
 
-export default function Navbar({ role = null }: NavbarProps) {
+export default function Navbar( {user}) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const navigate = useNavigate();
 
+  const logout = async () => {
+    try {
+      console.log("Logging out user:", auth.currentUser?.email);
+      await signOut(auth);
+      // اختيارياً: لو عندك صلاحية الوصول لـ setUser هنا (بس الأفضل تعتمد على App.tsx)
+      console.log("User signed out successfully");
+
+      // التوجيه لصفحة الـ login
+      navigate("/auth", { replace: true });
+    } catch (err) {
+      console.error("Sign out error:", err);
+    }
+  };
+  console.log("Navbar current user:", user);
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/50 bg-card/95 backdrop-blur-md shadow-card">
       <div className="container flex h-16 items-center justify-between">
@@ -34,28 +50,28 @@ export default function Navbar({ role = null }: NavbarProps) {
 
         {/* Desktop nav */}
         <nav className="hidden md:flex items-center gap-6">
-          {!role && (
+          {!user && (
             <>
               <a href="#features" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">Features</a>
               <a href="#how-it-works" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">How it works</a>
               <a href="#specialties" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">Specialties</a>
             </>
           )}
-          {role === "patient" && (
+          {user?.role === "patient" && (
             <>
               <Link to="/patient" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">Dashboard</Link>
               <Link to="/patient#ai-hub" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">AI Diagnostics</Link>
               <Link to="/patient#booking" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">Appointments</Link>
             </>
           )}
-          {role === "doctor" && (
+          {user?.role === "doctor" && (
             <>
               <Link to="/doctor" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">Dashboard</Link>
               <Link to="/doctor#patients" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">Patients</Link>
               <Link to="/doctor#schedule" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">Schedule</Link>
             </>
           )}
-          {role === "admin" && (
+          {user?.uid === "EWlEe7Z57kbXbDRNxrZvDdxnYOT2" && (
             <>
               <Link to="/admin" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">Overview</Link>
               <Link to="/admin#doctors" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">Doctors</Link>
@@ -66,7 +82,7 @@ export default function Navbar({ role = null }: NavbarProps) {
 
         {/* Right side */}
         <div className="flex items-center gap-3">
-          {role ? (
+          {user ? (
             <>
               <button className="relative p-2 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors">
                 <Bell className="h-5 w-5" />
@@ -80,9 +96,9 @@ export default function Navbar({ role = null }: NavbarProps) {
                     </div>
                     <div className="hidden sm:block text-left">
                       <p className="text-sm font-semibold text-foreground">
-                        {role === "patient" ? "John Doe" : role === "doctor" ? "Dr. Sarah Chen" : "Admin"}
+                        {user?.role === "patient" ? user?.fullname : user?.role === "doctor" ? `Dr. ${user?.fullname}` : "Admin"}
                       </p>
-                      <p className="text-xs text-muted-foreground capitalize">{role}</p>
+                      <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
                     </div>
                     <ChevronDown className="h-4 w-4 text-muted-foreground" />
                   </button>
@@ -92,9 +108,9 @@ export default function Navbar({ role = null }: NavbarProps) {
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     className="text-medical-red"
-                    onClick={() => navigate("/")}
+                    onClick={logout}
                   >
-                    <LogOut className="h-4 w-4 mr-2" /> Sign out
+                    <LogOut className="h-4 w-4 mr-2"/> Sign out
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -123,7 +139,7 @@ export default function Navbar({ role = null }: NavbarProps) {
         <div className="md:hidden border-t border-border/50 bg-card px-4 py-4 space-y-2">
           <Link to="/" className="block py-2 text-sm font-medium text-muted-foreground hover:text-primary">Home</Link>
           <a href="#features" className="block py-2 text-sm font-medium text-muted-foreground hover:text-primary">Features</a>
-          {!role && (
+          {!user && (
             <div className="pt-2 flex flex-col gap-2">
               <Button variant="outline" size="sm" onClick={() => navigate("/auth")}>Sign in</Button>
               <Button size="sm" className="bg-gradient-hero text-primary-foreground" onClick={() => navigate("/auth")}>Get Started</Button>

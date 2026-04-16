@@ -45,7 +45,7 @@ const patientRecords = [
   },
 ];
 
-export default function DoctorDashboard() {
+export default function DoctorDashboard({user}) {
   const [activeTab, setActiveTab] = useState<TabType>("overview");
   const [selectedPatient, setSelectedPatient] = useState<string | null>(null);
 
@@ -57,7 +57,7 @@ export default function DoctorDashboard() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar role="doctor" />
+      <Navbar user={user} />
       <AIChatbot />
 
       <div className="container py-8">
@@ -65,7 +65,7 @@ export default function DoctorDashboard() {
         <div className="rounded-2xl bg-gradient-hero p-6 mb-8 flex items-center justify-between">
           <div>
             <p className="text-primary-foreground/70 text-sm">Doctor Dashboard</p>
-            <h1 className="text-2xl font-heading font-bold text-primary-foreground mt-1">Dr. Sarah Chen</h1>
+            <h1 className="text-2xl font-heading font-bold text-primary-foreground mt-1"> Dr. {user?.fullname}  </h1>
             <p className="text-primary-foreground/70 text-sm mt-1">Pulmonologist · Medora General Hospital</p>
           </div>
           <div className="hidden sm:flex items-center gap-3">
