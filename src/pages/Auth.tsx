@@ -39,7 +39,6 @@ export default function Auth() {
     if (mode === 'register') {
       const res = await createUserWithEmailAndPassword(auth, email, password);
       const user = res.user;
-      setLoading(false);
       await setDoc(doc(db, "users", user.uid), {
         fullname: fullname,
         email: email,
@@ -47,6 +46,7 @@ export default function Auth() {
         createdAt: serverTimestamp(),
         uid: user.uid
       })
+      setLoading(false);
     } else {
       const res = await signInWithEmailAndPassword(auth, email, password);
       if (res.user.uid === "EWlEe7Z57kbXbDRNxrZvDdxnYOT2") return;

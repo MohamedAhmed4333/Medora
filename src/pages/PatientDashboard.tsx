@@ -1,10 +1,13 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Upload, AlertCircle, CheckCircle2, Clock, ChevronRight, Calendar, FileText, Activity, Stethoscope, Brain, HeartPulse, Microscope, Pill, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import Navbar from "@/components/Navbar";
 import AIChatbot from "@/components/AIChatbot";
 import AIProcessingAnimation from "@/components/AIProcessingAnimation";
+import { collection, getDoc, getDocs, orderBy, query } from "firebase/firestore";
+import { db } from "../config/firebase";
+import { useLoading } from "../context/loadingcontext"
 
 type TabType = "overview" | "ai-hub" | "results" | "doctors" | "booking" | "history";
 
@@ -25,7 +28,7 @@ const appointments = [
 const calendarDays = [20, 21, 22, 23, 24, 25, 26];
 const availableSlots = ["9:00 AM", "10:30 AM", "1:00 PM", "3:00 PM", "4:30 PM"];
 
-export default function PatientDashboard({user}) {
+export default function PatientDashboard({ user }) {
   const [activeTab, setActiveTab] = useState<TabType>("overview");
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
   const [uploadedFile, setUploadedFile] = useState<string | null>(null);
@@ -63,10 +66,74 @@ export default function PatientDashboard({user}) {
     { id: "booking", label: "Book Appointment" },
     { id: "history", label: "Medical History" },
   ];
+  const [vitals, setVitals] = useState(null);
+  const { loading, setLoading } = useLoading();
+  useEffect(() => {
+    setLoading(true);
+    const fetchSubcollection = async () => {
+      if (!user) return;
+      try {
+        const ref = collection(db, "users", user.uid, "vitals");
+        const q = query(ref, orderBy("createdAt", "desc"));
+        const snapshot = await getDocs(q);
+        if (!snapshot.empty) {
+          setVitals(snapshot.docs[0].data());
+        }
+      } catch (err) { console.error(err) }
+    }
+    setLoading(false);
+    fetchSubcollection();
+    console.log("fssssssssssssssssssssssssssssssss");
+  }, [user?.id])
+
+  const calculateHealthScore = (vitals) => {
+    if (!vitals) return 0;
+
+    let score = 0;
+
+    // 1. تقييم الضغط (مثال تبسيطي)
+    // المثالي 120/80
+    const sys = vitals?.bloodPressure?.systolic;
+    const dia = vitals?.bloodPressure?.diastolic;
+    if (sys >= 110 && sys <= 130 && dia >= 70 && dia <= 85) {
+      score += 30; // درجة كاملة
+    } else if (sys < 140 && dia < 90) {
+      score += 20; // قريب من الطبيعي
+    } else {
+      score += 10; // بعيد عن الطبيعي
+    }
+
+    // 2. تقييم نبض القلب (الطبيعي 60-100)
+    if (vitals?.heartRate >= 60 && vitals?.heartRate <= 100) {
+      score += 20;
+    } else {
+      score += 10;
+    }
+
+    // 3. تقييم السكر (صائم طبيعي 70-100)
+    if (vitals?.bloodSugar >= 70 && vitals?.bloodSugar <= 100) {
+      score += 30;
+    } else if (vitals?.bloodSugar < 125) {
+      score += 15;
+    } else {
+      score += 5;
+    }
+
+    // 4. تقييم الـ BMI (الطبيعي 18.5 - 24.9)
+    if (vitals?.bmi >= 18.5 && vitals?.bmi <= 24.9) {
+      score += 20;
+    } else {
+      score += 10;
+    }
+
+    return score;
+  };
+
+  
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar user = {user} />
+      <Navbar user={user} />
       <AIChatbot />
 
       <div className="container py-8">
@@ -75,7 +142,7 @@ export default function PatientDashboard({user}) {
           <div>
             <p className="text-primary-foreground/70 text-sm mb-1">Good morning,</p>
             <h1 className="text-2xl font-heading font-bold text-primary-foreground"> {user?.fullname} </h1>
-            <p className="text-primary-foreground/70 text-sm mt-1">Your health score: <span className="text-medical-green font-semibold">87/100</span></p>
+            <p className="text-primary-foreground/70 text-sm mt-1">Your health score: <span className="text-medical-green font-semibold">{calculateHealthScore(vitals)}/100</span></p>
           </div>
           <div className="hidden sm:flex items-center gap-3">
             <div className="text-center px-6 py-3 rounded-xl bg-white/10">
@@ -95,11 +162,10 @@ export default function PatientDashboard({user}) {
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
-                activeTab === item.id
-                  ? "bg-card text-primary shadow-card"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${activeTab === item.id
+                ? "bg-card text-primary shadow-card"
+                : "text-muted-foreground hover:text-foreground"
+                }`}
             >
               {item.label}
             </button>
@@ -158,10 +224,10 @@ export default function PatientDashboard({user}) {
               <div className="rounded-2xl bg-card border border-border shadow-card p-6">
                 <h3 className="font-semibold text-foreground mb-4">Health Vitals</h3>
                 {[
-                  { label: "Blood Pressure", value: "118/76", status: "Normal", color: "text-medical-green" },
-                  { label: "Heart Rate", value: "72 bpm", status: "Normal", color: "text-medical-green" },
-                  { label: "Blood Sugar", value: "95 mg/dL", status: "Normal", color: "text-medical-green" },
-                  { label: "BMI", value: "23.4", status: "Healthy", color: "text-medical-green" },
+                  { label: "Blood Pressure", value: `${vitals?.bloodPressure.systolic} / ${vitals?.bloodPressure.diastolic}`, status: vitals?.status.bp, color: "text-medical-green" },
+                  { label: "Heart Rate", value: `${vitals?.heartRate} bpm`, status: vitals?.status.hr, color: "text-medical-green" },
+                  { label: "Blood Sugar", value: `${vitals?.bloodSugar} mg/dL`, status: vitals?.status.sugar, color: "text-medical-green" },
+                  { label: "BMI", value: vitals?.bmi, status: vitals?.status.bmi, color: "text-medical-green" },
                 ].map((v) => (
                   <div key={v.label} className="flex items-center justify-between py-3 border-b border-border last:border-0">
                     <span className="text-sm text-muted-foreground">{v.label}</span>
@@ -215,11 +281,10 @@ export default function PatientDashboard({user}) {
                   <button
                     key={s}
                     onClick={() => toggleSymptom(s)}
-                    className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all ${
-                      selectedSymptoms.includes(s)
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "bg-muted border-border text-muted-foreground hover:border-primary/40 hover:text-primary"
-                    }`}
+                    className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all ${selectedSymptoms.includes(s)
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-muted border-border text-muted-foreground hover:border-primary/40 hover:text-primary"
+                      }`}
                   >
                     {s}
                   </button>
@@ -368,11 +433,10 @@ export default function PatientDashboard({user}) {
                   <button
                     key={d}
                     onClick={() => setSelectedDay(d)}
-                    className={`aspect-square rounded-xl text-sm font-medium flex items-center justify-center transition-all ${
-                      selectedDay === d
-                        ? "bg-gradient-hero text-primary-foreground"
-                        : "bg-muted/50 text-muted-foreground hover:bg-muted"
-                    }`}
+                    className={`aspect-square rounded-xl text-sm font-medium flex items-center justify-center transition-all ${selectedDay === d
+                      ? "bg-gradient-hero text-primary-foreground"
+                      : "bg-muted/50 text-muted-foreground hover:bg-muted"
+                      }`}
                   >
                     {d}
                   </button>
@@ -385,11 +449,10 @@ export default function PatientDashboard({user}) {
                   <button
                     key={slot}
                     onClick={() => setSelectedSlot(slot)}
-                    className={`py-2 rounded-lg text-sm font-medium border transition-all ${
-                      selectedSlot === slot
-                        ? "bg-medical-teal text-primary-foreground border-medical-teal"
-                        : "border-border text-muted-foreground hover:border-medical-teal/40"
-                    }`}
+                    className={`py-2 rounded-lg text-sm font-medium border transition-all ${selectedSlot === slot
+                      ? "bg-medical-teal text-primary-foreground border-medical-teal"
+                      : "border-border text-muted-foreground hover:border-medical-teal/40"
+                      }`}
                   >
                     {slot}
                   </button>

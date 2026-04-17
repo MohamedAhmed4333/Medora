@@ -3,15 +3,14 @@ import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 
-
 const firebaseConfig = {
-  apiKey: "AIzaSyADaYRojtiCN4RinmTez4FIlerWd78XuFo",
-  authDomain: "medora-test.firebaseapp.com",
-  projectId: "medora-test",
-  storageBucket: "medora-test.firebasestorage.app",
-  messagingSenderId: "704965256389",
-  appId: "1:704965256389:web:e4e84ad5f622d2feebbcac",
-  measurementId: "G-Z73E2Y7XRR"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_Storage_Bucket,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_messagingSenderId,
+  appId: import.meta.env.VITE_FIREBASE_appId,
+  measurementId: import.meta.env.VITE_FIREBASE_measurementId
 };
 
 // Initialize Firebase

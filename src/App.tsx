@@ -52,7 +52,9 @@ const App = () => {
           (docsnap) => {
             if (docsnap.exists()) {
               setUser({ ...currentUser, ...docsnap.data() });
-              setLoading(false);
+              setTimeout(()=> {
+                setLoading(false);
+              },2000);
             } else {
               console.warn("No user document found in Firestore");
               setUser(currentUser);
