@@ -28,6 +28,7 @@ const App = () => {
     user?.uid === "EWlEe7Z57kbXbDRNxrZvDdxnYOT2";
   console.log("Current Loading State:", loading);
   console.log("Current User:", user);
+   console.log(mode);
   useEffect(() => {
     let unsubscribeDoc: (() => void) | null = null;
 
@@ -46,7 +47,6 @@ const App = () => {
       // console.log("Done");
       else {
         if (unsubscribeDoc) unsubscribeDoc();
-
         unsubscribeDoc = onSnapshot(
           doc(db, "users", currentUser.uid),
           (docsnap) => {
@@ -88,7 +88,7 @@ const App = () => {
           <Sonner />
           <BrowserRouter>
             <Routes>
-              <Route path="/" element={<Index />} />
+              <Route path="/" element={<Index user = {user} />} />
               <Route path="/auth" element={!user ? <Auth /> : (
                 <Navigate to={
                   isAdmin ? '/admin' :

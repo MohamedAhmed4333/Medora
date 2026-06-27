@@ -36,12 +36,12 @@ const testimonials = [
   { name: "Linda Cruz", role: "Patient", rating: 5, text: "Booking an appointment took 30 seconds. The AI chatbot helped me understand my symptoms before I even saw the doctor." },
 ];
 
-export default function Index() {
+export default function Index({user}) {
   const navigate = useNavigate();
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
+      <Navbar user = {user} />
       <AIChatbot />
 
       {/* Hero */}

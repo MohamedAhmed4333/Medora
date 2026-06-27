@@ -14,10 +14,10 @@ interface PatientData {
   exercise: string;
   sleepHours: string;
   smoking: string;
-  systolic: string;
-  diastolic: string;
-  heartRate: string;
-  bloodSugar: string;
+  systolic?: string;
+  diastolic?: string;
+  heartRate?: string;
+  bloodSugar?: string;
 }
 
 const initialData: PatientData = {
@@ -26,7 +26,7 @@ const initialData: PatientData = {
   systolic: "", diastolic: "", heartRate: "", bloodSugar: "",
 };
 
-// ── Firebase-ready payload builder ─────────────────────────────────────────
+
 function buildFirebasePayload(data: PatientData, bmi: string | null) {
   const sys = Number(data.systolic);
   const dia = Number(data.diastolic);
@@ -37,13 +37,14 @@ function buildFirebasePayload(data: PatientData, bmi: string | null) {
   const bmiStatus =
     bmiNum < 18.5 ? "Underweight" : bmiNum < 25 ? "Normal" : bmiNum < 30 ? "Overweight" : "Obese";
   const bpStatus =
+    sys === 0 && dia === 0? "-":
     sys < 120 && dia < 80 ? "Normal"
       : sys < 130 && dia < 80 ? "Elevated"
         : sys < 140 || dia < 90 ? "High Stage 1"
           : "High Stage 2";
-  const hrStatus = hr < 60 ? "Bradycardia" : hr <= 100 ? "Normal" : "Tachycardia";
+  const hrStatus = hr === 0? "-" :hr < 60 ? "Bradycardia" : hr <= 100 ? "Normal" : "Tachycardia";
   const sugarStatus =
-    sugar < 70 ? "Low" : sugar <= 99 ? "Normal" : sugar <= 125 ? "Prediabetes" : "High";
+    sugar === 0? "-" : sugar < 70 ? "Low" : sugar <= 99 ? "Normal" : sugar <= 125 ? "Prediabetes" : "High";
 
   return {
     bloodPressure: { systolic: sys, diastolic: dia },
@@ -77,7 +78,9 @@ const smokingOptions = [
 ];
 
 function bpLabel(sys: number, dia: number) {
-  if (!sys || !dia) return null;
+  if (!sys || !dia || isNaN(sys) || isNaN(dia)) {
+    return null;
+  }
   if (sys < 120 && dia < 80) return { label: "Normal", color: "#34d399" };
   if (sys < 130 && dia < 80) return { label: "Elevated", color: "#fbbf24" };
   if (sys < 140 || dia < 90) return { label: "High Stage 1", color: "#fb923c" };
@@ -106,7 +109,6 @@ export default function PatientHealthForm({ user }) {
   const [firebasePayload, setFirebasePayload] = useState<ReturnType<typeof buildFirebasePayload> | null>(null);
   const {loading, setLoading} = useLoading();
   const {mode, setMode} = useAuth();
-
   const update = (field: keyof PatientData, value: string) =>
     setData((prev) => ({ ...prev, [field]: value }));
 
@@ -126,14 +128,13 @@ export default function PatientHealthForm({ user }) {
   const bmi = data.height && data.weight
     ? (Number(data.weight) / (Number(data.height) / 100) ** 2).toFixed(1)
     : null;
-
   const bmiCategory = bmi
     ? Number(bmi) < 18.5 ? { label: "Underweight", color: "#60a5fa" }
       : Number(bmi) < 25 ? { label: "Normal", color: "#34d399" }
         : Number(bmi) < 30 ? { label: "Overweight", color: "#fbbf24" }
           : { label: "Obese", color: "#f87171" }
     : null;
-
+  
   const bpStatus = bpLabel(Number(data.systolic), Number(data.diastolic));
   const hrStatus = hrLabel(Number(data.heartRate));
   const sugarStatus = sugarLabel(Number(data.bloodSugar));
@@ -143,7 +144,7 @@ export default function PatientHealthForm({ user }) {
     1: !!data.age && !!data.gender,
     2: !!data.height && !!data.weight,
     3: !!data.exercise && !!data.sleepHours && !!data.smoking,
-    4: !!data.systolic && !!data.diastolic && !!data.heartRate && !!data.bloodSugar,
+    4: true,
   };
 
 
@@ -168,12 +169,12 @@ export default function PatientHealthForm({ user }) {
     });
     await addDoc(collection(db, "users", user.uid, "vitals"), {
       bloodPressure: {
-        diastolic: payload.bloodPressure.diastolic,
-        systolic: payload.bloodPressure.systolic
+        diastolic: payload.bloodPressure.diastolic || null,
+        systolic: payload.bloodPressure.systolic || null
       },
-      bloodSugar: payload.bloodSugar,
+      bloodSugar: payload.bloodSugar || null,
       bmi: payload.bmi,
-      heartRate : payload.heartRate,
+      heartRate : payload.heartRate || null,
       status: {
         bmi: payload.status.bmi,
         bp: payload.status.bp,
@@ -256,7 +257,7 @@ export default function PatientHealthForm({ user }) {
                 <div style={S.field}>
                   <label style={S.label}>Gender</label>
                   <div style={S.genderGrid}>
-                    {[{ value: "male", label: "Male", icon: "♂" }, { value: "female", label: "Female", icon: "♀" }, { value: "other", label: "Other", icon: "⚧" }, { value: "prefer_not", label: "Prefer not to say", icon: "—" }].map((g) => (
+                    {[{ value: "male", label: "Male", icon: "♂" }, { value: "female", label: "Female", icon: "♀" }].map((g) => (
                       <button key={g.value} onClick={() => update("gender", g.value)} style={{ ...S.optionBtn, ...(data.gender === g.value ? S.optionBtnActive : {}) }}>
                         <span style={S.optionIcon}>{g.icon}</span>
                         <span style={S.optionLabel}>{g.label}</span>
@@ -352,11 +353,11 @@ export default function PatientHealthForm({ user }) {
                   </label>
                   <div style={S.twoCol}>
                     <div style={S.inputWrapper}>
-                      <input type="number" min={60} max={250} placeholder="120" value={data.systolic} onChange={(e) => update("systolic", e.target.value)} style={S.input} />
+                      <input type="number" min={60} max={250} placeholder="120 - Optional" value={data.systolic} onChange={(e) => update("systolic", e.target.value)} style={S.input} />
                       <span style={S.inputUnit}>sys</span>
                     </div>
                     <div style={S.inputWrapper}>
-                      <input type="number" min={40} max={150} placeholder="80" value={data.diastolic} onChange={(e) => update("diastolic", e.target.value)} style={S.input} />
+                      <input type="number" min={40} max={150} placeholder="80 - Optional" value={data.diastolic} onChange={(e) => update("diastolic", e.target.value)} style={S.input} />
                       <span style={S.inputUnit}>dia</span>
                     </div>
                   </div>
@@ -378,7 +379,7 @@ export default function PatientHealthForm({ user }) {
                     {hrStatus && <span style={{ ...S.inlineBadge, background: hrStatus.color + "22", color: hrStatus.color }}>{hrStatus.label}</span>}
                   </label>
                   <div style={S.inputWrapper}>
-                    <input type="number" min={30} max={220} placeholder="72" value={data.heartRate} onChange={(e) => update("heartRate", e.target.value)} style={S.input} />
+                    <input type="number" min={30} max={220} placeholder="72 - Optional" value={data.heartRate} onChange={(e) => update("heartRate", e.target.value)} style={S.input} />
                     <span style={S.inputUnit}>bpm</span>
                   </div>
                   <p style={S.fieldHint}>Normal resting: 60–100 bpm</p>
@@ -391,7 +392,7 @@ export default function PatientHealthForm({ user }) {
                     {sugarStatus && <span style={{ ...S.inlineBadge, background: sugarStatus.color + "22", color: sugarStatus.color }}>{sugarStatus.label}</span>}
                   </label>
                   <div style={S.inputWrapper}>
-                    <input type="number" min={40} max={500} placeholder="90" value={data.bloodSugar} onChange={(e) => update("bloodSugar", e.target.value)} style={S.input} />
+                    <input type="number" min={40} max={500} placeholder="90 - Optional" value={data.bloodSugar} onChange={(e) => update("bloodSugar", e.target.value)} style={S.input} />
                     <span style={S.inputUnit}>mg/dL</span>
                   </div>
                   <p style={S.fieldHint}>Normal fasting: 70–99 mg/dL</p>
@@ -411,7 +412,7 @@ export default function PatientHealthForm({ user }) {
               {step < TOTAL ? (
                 <button onClick={goNext} disabled={!stepValid[step]} style={{ ...S.nextBtn, opacity: stepValid[step] ? 1 : 0.45, cursor: stepValid[step] ? "pointer" : "not-allowed" }}>Continue →</button>
               ) : (
-                <button onClick={addTodatabase} disabled={!stepValid[4]} style={{ ...S.nextBtn, opacity: stepValid[4] ? 1 : 0.45, cursor: stepValid[4] ? "pointer" : "not-allowed" }}>Save to Firebase ✓</button>
+                <button onClick={addTodatabase} disabled={!stepValid[4]} style={{ ...S.nextBtn, opacity: stepValid[4] ? 1 : 0.45, cursor: stepValid[4] ? "pointer" : "not-allowed" }}>Save ✓</button>
               )}
             </div>
             <p style={S.footerNote}>🔒 Your data is encrypted and HIPAA-compliant</p>

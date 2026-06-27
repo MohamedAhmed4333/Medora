@@ -28,7 +28,7 @@ const appointments = [
 const calendarDays = [20, 21, 22, 23, 24, 25, 26];
 const availableSlots = ["9:00 AM", "10:30 AM", "1:00 PM", "3:00 PM", "4:30 PM"];
 
-export default function PatientDashboard({ user }) {
+export default function ({ user }) {
   const [activeTab, setActiveTab] = useState<TabType>("overview");
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
   const [uploadedFile, setUploadedFile] = useState<string | null>(null);
@@ -83,52 +83,49 @@ export default function PatientDashboard({ user }) {
     }
     setLoading(false);
     fetchSubcollection();
-    console.log("fssssssssssssssssssssssssssssssss");
   }, [user?.id])
 
-  const calculateHealthScore = (vitals) => {
-    if (!vitals) return 0;
+const calculateHealthScore = (vitals) => {
+  if (!vitals) return 0;
+  let score = 0;
 
-    let score = 0;
+  const sys = vitals?.bloodPressure?.systolic;
+  const dia = vitals?.bloodPressure?.diastolic;
 
-    // 1. تقييم الضغط (مثال تبسيطي)
-    // المثالي 120/80
-    const sys = vitals?.bloodPressure?.systolic;
-    const dia = vitals?.bloodPressure?.diastolic;
+  if (sys && dia) { 
     if (sys >= 110 && sys <= 130 && dia >= 70 && dia <= 85) {
-      score += 30; // درجة كاملة
+      score += 30;
     } else if (sys < 140 && dia < 90) {
-      score += 20; // قريب من الطبيعي
-    } else {
-      score += 10; // بعيد عن الطبيعي
-    }
-
-    // 2. تقييم نبض القلب (الطبيعي 60-100)
-    if (vitals?.heartRate >= 60 && vitals?.heartRate <= 100) {
       score += 20;
     } else {
       score += 10;
     }
-
-    // 3. تقييم السكر (صائم طبيعي 70-100)
-    if (vitals?.bloodSugar >= 70 && vitals?.bloodSugar <= 100) {
+  }
+  if (vitals?.heartRate) {
+    if (vitals.heartRate >= 60 && vitals.heartRate <= 100) {
+      score += 20;
+    } else {
+      score += 10;
+    }
+  }
+  if (vitals?.bloodSugar) {
+    if (vitals.bloodSugar >= 70 && vitals.sugar <= 100) {
       score += 30;
-    } else if (vitals?.bloodSugar < 125) {
+    } else if (vitals.bloodSugar < 125) {
       score += 15;
     } else {
       score += 5;
     }
-
-    // 4. تقييم الـ BMI (الطبيعي 18.5 - 24.9)
-    if (vitals?.bmi >= 18.5 && vitals?.bmi <= 24.9) {
+  }
+  if (vitals?.bmi) {
+    if (vitals.bmi >= 18.5 && vitals.bmi <= 24.9) {
       score += 20;
     } else {
       score += 10;
     }
-
-    return score;
-  };
-
+  }
+  return score;
+};
   
 
   return (
@@ -224,9 +221,9 @@ export default function PatientDashboard({ user }) {
               <div className="rounded-2xl bg-card border border-border shadow-card p-6">
                 <h3 className="font-semibold text-foreground mb-4">Health Vitals</h3>
                 {[
-                  { label: "Blood Pressure", value: `${vitals?.bloodPressure.systolic} / ${vitals?.bloodPressure.diastolic}`, status: vitals?.status.bp, color: "text-medical-green" },
-                  { label: "Heart Rate", value: `${vitals?.heartRate} bpm`, status: vitals?.status.hr, color: "text-medical-green" },
-                  { label: "Blood Sugar", value: `${vitals?.bloodSugar} mg/dL`, status: vitals?.status.sugar, color: "text-medical-green" },
+                  { label: "Blood Pressure", value: `${vitals?.bloodPressure.systolic || `-`} / ${vitals?.bloodPressure.diastolic || `-`}`, status: `${vitals?.status.bp || `-`}`, color: "text-medical-green" },
+                  { label: "Heart Rate", value: `${vitals?.heartRate || '-'} bpm`, status: vitals?.status.hr, color: "text-medical-green" },
+                  { label: "Blood Sugar", value: `${vitals?.bloodSugar || '-'} mg/dL`, status: vitals?.status.sugar, color: "text-medical-green" },
                   { label: "BMI", value: vitals?.bmi, status: vitals?.status.bmi, color: "text-medical-green" },
                 ].map((v) => (
                   <div key={v.label} className="flex items-center justify-between py-3 border-b border-border last:border-0">
