@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Upload, AlertCircle, CheckCircle2, Clock, ChevronRight, Calendar, FileText, Activity, Stethoscope, Brain, HeartPulse, Microscope, Pill, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import Navbar from "@/components/Navbar";
 import AIChatbot from "@/components/AIChatbot";
 import AIProcessingAnimation from "@/components/AIProcessingAnimation";
-import { collection, getDoc, getDocs, orderBy, query } from "firebase/firestore";
+import { collection, getDoc, getDocs, orderBy, query, where } from "firebase/firestore";
 import { db } from "../config/firebase";
 import { useLoading } from "../context/loadingcontext"
 
@@ -25,8 +25,21 @@ const appointments = [
   { date: "Dec 10", time: "11:00 AM", doctor: "Dr. Priya Nair", specialty: "Internal Medicine", status: "Completed" },
 ];
 
-const calendarDays = [20, 21, 22, 23, 24, 25, 26];
+// const calendarDays = [20, 21, 22, 23, 24, 25, 26];
 const availableSlots = ["9:00 AM", "10:30 AM", "1:00 PM", "3:00 PM", "4:30 PM"];
+
+const generateCalendarDays = (numDays: number = 7) => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const days: Date[] = [];
+  for (let i = 0; i < numDays; i++) {
+    const date = new Date(today);
+    date.setDate(today.getDate() + i);
+    days.push(date);
+  }
+  return days;
+};
 
 export default function ({ user }) {
   const [activeTab, setActiveTab] = useState<TabType>("overview");
@@ -34,9 +47,14 @@ export default function ({ user }) {
   const [uploadedFile, setUploadedFile] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showResults, setShowResults] = useState(false);
-  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  // const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [bookingSuccess, setBookingSuccess] = useState(false);
+  const [doctors, setDoctors] = useState([]);
+  const [selectedDoctor, setSelectedDoctor] = useState<any>(null);
+  const [selectedDay, setSelectedDay] = useState<Date | null>(null);
+  const calendarDays = useMemo(() => generateCalendarDays(7), []);
+
 
   const toggleSymptom = (s: string) => {
     setSelectedSymptoms((prev) => prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]);
@@ -81,52 +99,73 @@ export default function ({ user }) {
         }
       } catch (err) { console.error(err) }
     }
+    const fetchDoctors = async () => {
+      try {
+        const doctorsQuery = query(
+          collection(db, "users"),
+          where("role", "==", "doctor")
+        );
+        const querySnapshot = await getDocs(doctorsQuery);
+        const doctorsList = querySnapshot.docs.map((doc) => ({
+          uid: doc.id,
+          ...doc.data(),
+        }));
+        setDoctors(doctorsList);
+      }
+      catch (error) {
+        console.error("Error fetching doctors:", error);
+      }
+    }
     setLoading(false);
     fetchSubcollection();
+    fetchDoctors();
   }, [user?.id])
 
-const calculateHealthScore = (vitals) => {
-  if (!vitals) return 0;
-  let score = 0;
+  const calculateHealthScore = (vitals) => {
+    if (!vitals) return 0;
+    let score = 0;
 
-  const sys = vitals?.bloodPressure?.systolic;
-  const dia = vitals?.bloodPressure?.diastolic;
+    const sys = vitals?.bloodPressure?.systolic;
+    const dia = vitals?.bloodPressure?.diastolic;
 
-  if (sys && dia) { 
-    if (sys >= 110 && sys <= 130 && dia >= 70 && dia <= 85) {
-      score += 30;
-    } else if (sys < 140 && dia < 90) {
-      score += 20;
-    } else {
-      score += 10;
+    if (sys && dia) {
+      if (sys >= 110 && sys <= 130 && dia >= 70 && dia <= 85) {
+        score += 30;
+      } else if (sys < 140 && dia < 90) {
+        score += 20;
+      } else {
+        score += 10;
+      }
     }
-  }
-  if (vitals?.heartRate) {
-    if (vitals.heartRate >= 60 && vitals.heartRate <= 100) {
-      score += 20;
-    } else {
-      score += 10;
+    if (vitals?.heartRate) {
+      if (vitals.heartRate >= 60 && vitals.heartRate <= 100) {
+        score += 20;
+      } else {
+        score += 10;
+      }
     }
-  }
-  if (vitals?.bloodSugar) {
-    if (vitals.bloodSugar >= 70 && vitals.sugar <= 100) {
-      score += 30;
-    } else if (vitals.bloodSugar < 125) {
-      score += 15;
-    } else {
-      score += 5;
+    if (vitals?.bloodSugar) {
+      if (vitals.bloodSugar >= 70 && vitals.sugar <= 100) {
+        score += 30;
+      } else if (vitals.bloodSugar < 125) {
+        score += 15;
+      } else {
+        score += 5;
+      }
     }
-  }
-  if (vitals?.bmi) {
-    if (vitals.bmi >= 18.5 && vitals.bmi <= 24.9) {
-      score += 20;
-    } else {
-      score += 10;
+    if (vitals?.bmi) {
+      if (vitals.bmi >= 18.5 && vitals.bmi <= 24.9) {
+        score += 20;
+      } else {
+        score += 10;
+      }
     }
-  }
-  return score;
-};
-  
+    return score;
+  };
+
+
+
+
 
   return (
     <div className="min-h-screen bg-background">
@@ -390,28 +429,31 @@ const calculateHealthScore = (vitals) => {
         {/* DOCTORS */}
         {activeTab === "doctors" && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {recommendedDoctors.map((doc) => (
-              <div key={doc.name} className="rounded-2xl bg-card border border-border shadow-card p-6 hover:border-medical-teal/30 hover:shadow-elevated transition-all group">
+            {doctors.map((doc) => (
+              <div key={doc.uid} className="rounded-2xl bg-card border border-border shadow-card p-6 hover:border-medical-teal/30 hover:shadow-elevated transition-all group">
                 <div className="flex items-center gap-4 mb-4">
-                  <div className="h-14 w-14 rounded-2xl bg-gradient-hero flex items-center justify-center">
+                  {/* <div className="h-14 w-14 rounded-2xl bg-gradient-hero flex items-center justify-center">
                     <doc.icon className="h-7 w-7 text-primary-foreground" />
-                  </div>
+                  </div> */}
                   <div>
-                    <h3 className="font-semibold text-foreground">{doc.name}</h3>
+                    <h3 className="font-semibold text-foreground">{doc.fullname}</h3>
                     <p className="text-sm text-muted-foreground">{doc.specialty}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-4 mb-4 text-sm">
-                  <span className="text-medical-amber font-semibold">★ {doc.rating}</span>
-                  <span className="text-muted-foreground">{doc.exp} experience</span>
+                  <span className="text-medical-amber font-semibold">★ 4.5</span>
+                  <span className="text-muted-foreground">5 experience</span>
                 </div>
                 <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg bg-medical-green-light">
                   <Clock className="h-3.5 w-3.5 text-medical-green" />
-                  <p className="text-xs font-medium text-medical-green">Available: {doc.available}</p>
+                  <p className="text-xs font-medium text-medical-green">Available: {doc.workingHours ? Object.keys(doc.workingHours).length : 0} days</p>
                 </div>
                 <Button
                   className="w-full bg-gradient-hero text-primary-foreground hover:opacity-90"
-                  onClick={() => setActiveTab("booking")}
+                  onClick={() => {
+                    setActiveTab("booking");
+                    setSelectedDoctor(doc);
+                  }}
                 >
                   Book Appointment
                 </Button>
@@ -426,18 +468,23 @@ const calculateHealthScore = (vitals) => {
             <div className="rounded-2xl bg-card border border-border shadow-card p-6">
               <h3 className="font-semibold text-lg text-foreground mb-6">Select Date</h3>
               <div className="grid grid-cols-7 gap-2 mb-6">
-                {calendarDays.map((d) => (
-                  <button
-                    key={d}
-                    onClick={() => setSelectedDay(d)}
-                    className={`aspect-square rounded-xl text-sm font-medium flex items-center justify-center transition-all ${selectedDay === d
-                      ? "bg-gradient-hero text-primary-foreground"
-                      : "bg-muted/50 text-muted-foreground hover:bg-muted"
-                      }`}
-                  >
-                    {d}
-                  </button>
-                ))}
+                {calendarDays.map((date) => {
+                  const isSelected = selectedDay?.toDateString() === date.toDateString();
+                  const dayName = date.toLocaleDateString("en-US", { weekday: "short" }); // Mon, Tue, ...
+                  return (
+                    <button
+                      key={date.toISOString()}
+                      onClick={() => setSelectedDay(date)}
+                      className={`aspect-square rounded-xl text-sm font-medium flex flex-col items-center justify-center gap-1 transition-all ${isSelected
+                          ? "bg-gradient-hero text-primary-foreground"
+                          : "bg-muted/50 text-muted-foreground hover:bg-muted"
+                        }`}
+                    >
+                      <span className="text-[10px] uppercase opacity-70">{dayName}</span>
+                      <span className="text-base font-semibold">{date.getDate()}</span>
+                    </button>
+                  );
+                })}
               </div>
 
               <h3 className="font-semibold text-foreground mb-3">Available Time Slots</h3>
@@ -461,9 +508,9 @@ const calculateHealthScore = (vitals) => {
               <h3 className="font-semibold text-lg text-foreground mb-6">Booking Summary</h3>
               <div className="space-y-3 mb-6">
                 {[
-                  { label: "Doctor", value: "Dr. Sarah Chen" },
-                  { label: "Specialty", value: "Pulmonology" },
-                  { label: "Date", value: selectedDay ? `Feb ${selectedDay}, 2025` : "—" },
+                  { label: "Doctor", value: selectedDoctor?.fullname },
+                  { label: "Specialty", value: selectedDoctor?.specialty },
+                  { label: "Date", value: selectedDay ? selectedDay.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : "—" },
                   { label: "Time", value: selectedSlot || "—" },
                   { label: "Type", value: "In-person" },
                 ].map((item) => (
