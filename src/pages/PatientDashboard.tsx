@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import Navbar from "@/components/Navbar";
 import AIChatbot from "@/components/AIChatbot";
 import AIProcessingAnimation from "@/components/AIProcessingAnimation";
-import { collection, getDoc, getDocs, orderBy, query, where } from "firebase/firestore";
+import { collection, getDoc, getDocs, orderBy, query, where, addDoc, serverTimestamp, doc, runTransaction } from "firebase/firestore";
 import { db } from "../config/firebase";
 import { useLoading } from "../context/loadingcontext"
 
@@ -26,7 +26,7 @@ const appointments = [
 ];
 
 // const calendarDays = [20, 21, 22, 23, 24, 25, 26];
-const availableSlots = ["9:00 AM", "10:30 AM", "1:00 PM", "3:00 PM", "4:30 PM"];
+
 
 const generateCalendarDays = (numDays: number = 7) => {
   const today = new Date();
@@ -41,6 +41,8 @@ const generateCalendarDays = (numDays: number = 7) => {
   return days;
 };
 
+
+
 export default function ({ user }) {
   const [activeTab, setActiveTab] = useState<TabType>("overview");
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
@@ -54,7 +56,33 @@ export default function ({ user }) {
   const [selectedDoctor, setSelectedDoctor] = useState<any>(null);
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
   const calendarDays = useMemo(() => generateCalendarDays(7), []);
+  const [bookedSlots, setbookedSlots] = useState<string[]>([]);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
 
+  function generateTimeSlots(startTime: string, endTime: string, intervalMinutes: number): string[] {
+    // setIsLoadingSlots(true);
+    const slots: string[] = [];
+    const [startHour, startMin] = startTime.split(':').map(Number);
+    const [endHour, endMin] = endTime.split(':').map(Number);
+    const today = new Date();
+    let currentTotalMinutes = startHour * 60 + startMin;
+    const endTotalMinutes = endHour * 60 + endMin;
+    while (currentTotalMinutes < endTotalMinutes) {
+      const hours = Math.floor(currentTotalMinutes / 60);
+      const minutes = currentTotalMinutes % 60;
+
+      const formattedTime = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+      const currentHour = today.getHours();
+      const currentMinute = today.getMinutes();
+      if (hours > currentHour || (hours === currentHour && minutes > currentMinute)) {
+        if (!bookedSlots.includes(formattedTime)) {
+          slots.push(formattedTime);
+        }
+      }
+      currentTotalMinutes += intervalMinutes;
+    }
+    return slots;
+  }
 
   const toggleSymptom = (s: string) => {
     setSelectedSymptoms((prev) => prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]);
@@ -70,8 +98,36 @@ export default function ({ user }) {
     }, 4000);
   };
 
-  const handleBook = () => {
-    if (!selectedDay || !selectedSlot) return;
+  const handleBook = async () => {
+    if (!selectedDoctor || !selectedDay || !selectedSlot) return;
+    const formattedDate = selectedDay.toISOString().split('T')[0];
+    const appointmentId = `${selectedDoctor.uid}_${formattedDate}_${selectedSlot.replace(':', '-')}`;
+    const appointmentRef = doc(db, "appointments", appointmentId);
+    try {
+      await runTransaction(db, async (transaction) => {
+        const appointmentDoc = await transaction.get(appointmentRef);
+        if (appointmentDoc.exists()) {
+          throw new Error("Oooops, This Time is reserved");
+        }
+        transaction.set(appointmentRef, {
+          patientId: user.uid,
+          patientName: user.fullname,
+          doctorId: selectedDoctor.uid,
+          doctorName: selectedDoctor.fullname,
+          specialty: selectedDoctor.specialty,
+          date: formattedDate,
+          timeSlot: selectedSlot,
+          status: "pending",
+          createdAt: serverTimestamp()
+        });
+      });
+      alert("تم الحجز بأمان بنسبة 100%!");
+      console.log("Doctooooooor", selectedDoctor.uid);
+      setTimeout(() => { setBookingSuccess(false); setActiveTab("history"); }, 2000);
+    } catch (error) {
+      console.error("Transaction failed: ", error);
+      alert(error.message || "حدث خطأ أثناء الحجز، يرجى المحاولة مرة أخرى.");
+    }
     setBookingSuccess(true);
     setTimeout(() => { setBookingSuccess(false); setActiveTab("history"); }, 2000);
   };
@@ -86,6 +142,33 @@ export default function ({ user }) {
   ];
   const [vitals, setVitals] = useState(null);
   const { loading, setLoading } = useLoading();
+
+  useEffect(() => {
+    const fetchDoctorHours = async () => {
+      // setIsLoadingSlots(true);
+      const booked: string[] = [];
+      const formattedDate = selectedDay.toISOString().split('T')[0];
+      try {
+        const q = query(
+          collection(db, "appointments"),
+          where("doctorId", "==", selectedDoctor.uid),
+          where("date", "==", formattedDate)
+        );
+        const querySnapshot = await getDocs(q);
+        querySnapshot.forEach((doc) => {
+          booked.push(doc.data().timeSlot);
+        });
+        setbookedSlots(booked);
+      } catch (error) {
+        console.error("Error fetching booked slots: ", error);
+      }
+      finally {
+        setIsLoadingSlots(false);
+      }
+    }
+    fetchDoctorHours();
+  }, [selectedDay, selectedDoctor])
+
   useEffect(() => {
     setLoading(true);
     const fetchSubcollection = async () => {
@@ -470,14 +553,18 @@ export default function ({ user }) {
               <div className="grid grid-cols-7 gap-2 mb-6">
                 {calendarDays.map((date) => {
                   const isSelected = selectedDay?.toDateString() === date.toDateString();
-                  const dayName = date.toLocaleDateString("en-US", { weekday: "short" }); // Mon, Tue, ...
+                  const dayName = date.toLocaleDateString("en-US", { weekday: "long" });
                   return (
                     <button
                       key={date.toISOString()}
-                      onClick={() => setSelectedDay(date)}
+                      onClick={() => {
+                        setSelectedDay(date)
+                        setIsLoadingSlots(true);
+                        setbookedSlots([]);
+                      }}
                       className={`aspect-square rounded-xl text-sm font-medium flex flex-col items-center justify-center gap-1 transition-all ${isSelected
-                          ? "bg-gradient-hero text-primary-foreground"
-                          : "bg-muted/50 text-muted-foreground hover:bg-muted"
+                        ? "bg-gradient-hero text-primary-foreground"
+                        : "bg-muted/50 text-muted-foreground hover:bg-muted"
                         }`}
                     >
                       <span className="text-[10px] uppercase opacity-70">{dayName}</span>
@@ -488,19 +575,37 @@ export default function ({ user }) {
               </div>
 
               <h3 className="font-semibold text-foreground mb-3">Available Time Slots</h3>
-              <div className="grid grid-cols-3 gap-2">
-                {availableSlots.map((slot) => (
-                  <button
-                    key={slot}
-                    onClick={() => setSelectedSlot(slot)}
-                    className={`py-2 rounded-lg text-sm font-medium border transition-all ${selectedSlot === slot
-                      ? "bg-medical-teal text-primary-foreground border-medical-teal"
-                      : "border-border text-muted-foreground hover:border-medical-teal/40"
-                      }`}
-                  >
-                    {slot}
-                  </button>
-                ))}
+              <div className="grid grid-cols-3 gap-2 min-h-[160px]">
+                {(isLoadingSlots && selectedDoctor) ? (
+                  <div className="col-span-3 flex flex-col items-center justify-center gap-3 py-10">
+                    <div className="w-8 h-8 border-[3px] border-medical-teal/20 border-t-medical-teal rounded-full animate-spin" />
+                    <p className="text-sm text-muted-foreground">Loading available times...</p>
+                  </div>
+                ) : (
+                  (() => {
+                    const dayName = selectedDay?.toLocaleDateString('en-US', { weekday: "long" });
+                    const dayConfig = selectedDoctor?.workingHours?.[String(dayName)];
+                    console.log("dayConfig : ", selectedDoctor);
+                    if (!dayConfig) {
+                      return <p className="col-span-3 text-sm text-muted-foreground text-center">There is not any Time available Today</p>;
+                    }
+                    const availableSlots = generateTimeSlots(dayConfig.start, dayConfig.end, Number(selectedDoctor.slotDuration));
+                    // setIsLoadingSlots(false);
+                    return availableSlots.map((slot: string) => (
+                      <button
+                        key={slot}
+                        type="button"
+                        onClick={() => setSelectedSlot(slot)}
+                        className={`py-2 rounded-lg text-sm font-medium border transition-all ${selectedSlot === slot
+                          ? "bg-medical-teal text-primary-foreground border-medical-teal"
+                          : "border-border text-muted-foreground hover:border-medical-teal/40"
+                          }`}
+                      >
+                        {slot}
+                      </button>
+                    ));
+                  })()
+                )}
               </div>
             </div>
 
