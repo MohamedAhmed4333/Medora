@@ -5,9 +5,10 @@ import { Badge } from "@/components/ui/badge";
 import Navbar from "@/components/Navbar";
 import AIChatbot from "@/components/AIChatbot";
 import AIProcessingAnimation from "@/components/AIProcessingAnimation";
-import { collection, getDoc, getDocs, orderBy, query, where, addDoc, serverTimestamp, doc, runTransaction } from "firebase/firestore";
+import { collection, getDoc, getDocs, orderBy, query, where, addDoc, serverTimestamp, doc, runTransaction, increment } from "firebase/firestore";
 import { db } from "../config/firebase";
 import { useLoading } from "../context/loadingcontext"
+import { Loader2 } from "lucide-react";
 
 type TabType = "overview" | "ai-hub" | "results" | "doctors" | "booking" | "history";
 
@@ -58,6 +59,8 @@ export default function ({ user }) {
   const calendarDays = useMemo(() => generateCalendarDays(7), []);
   const [bookedSlots, setbookedSlots] = useState<string[]>([]);
   const [isLoadingSlots, setIsLoadingSlots] = useState(false);
+  const [appointments, setAppointments] = useState<any[]>([]);
+  const [dashboardLoading, setDashboardLoading] = useState(true);
 
   function generateTimeSlots(startTime: string, endTime: string, intervalMinutes: number): string[] {
     // setIsLoadingSlots(true);
@@ -74,8 +77,8 @@ export default function ({ user }) {
       const formattedTime = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
       const currentHour = today.getHours();
       const currentMinute = today.getMinutes();
-      if (hours > currentHour || (hours === currentHour && minutes > currentMinute)) {
-        if (!bookedSlots.includes(formattedTime)) {
+      if (hours > currentHour || (hours === currentHour && minutes > currentMinute) || selectedDay?.toLocaleDateString('en-US', { weekday: "long" }) != today.toLocaleDateString('en-US', { weekday: "long" })) {
+        if (!bookedSlots.includes(formattedTime) && selectedDay?.toLocaleDateString('en-US', { weekday: "long" }) != today.toLocaleDateString('en-US', { weekday: "long" })) {
           slots.push(formattedTime);
         }
       }
@@ -103,6 +106,7 @@ export default function ({ user }) {
     const formattedDate = selectedDay.toISOString().split('T')[0];
     const appointmentId = `${selectedDoctor.uid}_${formattedDate}_${selectedSlot.replace(':', '-')}`;
     const appointmentRef = doc(db, "appointments", appointmentId);
+    const patientRef = doc(db, "users", user.uid);
     try {
       await runTransaction(db, async (transaction) => {
         const appointmentDoc = await transaction.get(appointmentRef);
@@ -117,19 +121,21 @@ export default function ({ user }) {
           specialty: selectedDoctor.specialty,
           date: formattedDate,
           timeSlot: selectedSlot,
-          status: "pending",
+          status: "upcoming",
           createdAt: serverTimestamp()
         });
+        transaction.update(patientRef, {
+          "stats.upcoming": increment(1)
+        });
       });
-      alert("تم الحجز بأمان بنسبة 100%!");
-      console.log("Doctooooooor", selectedDoctor.uid);
-      setTimeout(() => { setBookingSuccess(false); setActiveTab("history"); }, 2000);
+      setBookingSuccess(true);
+
+      setTimeout(() => { setBookingSuccess(false); setActiveTab("history"); }, 1000);
+      setSelectedDay(null);
     } catch (error) {
       console.error("Transaction failed: ", error);
       alert(error.message || "حدث خطأ أثناء الحجز، يرجى المحاولة مرة أخرى.");
     }
-    setBookingSuccess(true);
-    setTimeout(() => { setBookingSuccess(false); setActiveTab("history"); }, 2000);
   };
 
   const navItems: { id: TabType; label: string }[] = [
@@ -145,7 +151,6 @@ export default function ({ user }) {
 
   useEffect(() => {
     const fetchDoctorHours = async () => {
-      // setIsLoadingSlots(true);
       const booked: string[] = [];
       const formattedDate = selectedDay.toISOString().split('T')[0];
       try {
@@ -170,39 +175,78 @@ export default function ({ user }) {
   }, [selectedDay, selectedDoctor])
 
   useEffect(() => {
-    setLoading(true);
-    const fetchSubcollection = async () => {
-      if (!user) return;
+    const fetchAll = async () => {
+      setDashboardLoading(true);
+      console.log("fsssssssssssssssssssssss", user?.uid);
+      if (!user?.uid) return;
       try {
-        const ref = collection(db, "users", user.uid, "vitals");
-        const q = query(ref, orderBy("createdAt", "desc"));
-        const snapshot = await getDocs(q);
-        if (!snapshot.empty) {
-          setVitals(snapshot.docs[0].data());
+        const fetchSubcollection = async () => {
+          if (!user) return;
+          try {
+            const ref = collection(db, "users", user.uid, "vitals");
+            const q = query(ref, orderBy("createdAt", "desc"));
+            const snapshot = await getDocs(q);
+            if (!snapshot.empty) {
+              setVitals(snapshot.docs[0].data());
+            }
+          } catch (err) { console.error(err) }
         }
-      } catch (err) { console.error(err) }
-    }
-    const fetchDoctors = async () => {
-      try {
-        const doctorsQuery = query(
-          collection(db, "users"),
-          where("role", "==", "doctor")
-        );
-        const querySnapshot = await getDocs(doctorsQuery);
-        const doctorsList = querySnapshot.docs.map((doc) => ({
-          uid: doc.id,
-          ...doc.data(),
-        }));
-        setDoctors(doctorsList);
+        const fetchDoctors = async () => {
+          try {
+            const doctorsQuery = query(
+              collection(db, "users"),
+              where("role", "==", "doctor")
+            );
+            const querySnapshot = await getDocs(doctorsQuery);
+            const doctorsList = querySnapshot.docs.map((doc) => ({
+              uid: doc.id,
+              ...doc.data(),
+            }));
+            setDoctors(doctorsList);
+          }
+          catch (error) {
+            console.error("Error fetching doctors:", error);
+          }
+        }
+
+       await Promise.all([
+        fetchSubcollection(),
+        fetchDoctors()
+      ]);
+
+
+      } catch (error) {
+        console.error("Error loading dashboard data:", error);
+      } finally {
+        setDashboardLoading(false);
       }
-      catch (error) {
-        console.error("Error fetching doctors:", error);
-      }
     }
-    setLoading(false);
-    fetchSubcollection();
-    fetchDoctors();
-  }, [user?.id])
+    fetchAll();
+  }, [user?.uid])
+
+  useEffect(() => {
+     const fetchappiontments = async () => {
+          try {
+            const q = query(
+              collection(db, "appointments"),
+              where("patientId", "==", user.uid)
+            );
+            const querySnapshot = await getDocs(q);
+            const appointmentsList: any[] = [];
+            querySnapshot.forEach((doc) => {
+              appointmentsList.push({
+                id: doc.id,
+                ...doc.data()
+              });
+            });
+            appointmentsList.sort((a, b) => b.createdAt?.seconds - a.createdAt?.seconds);
+            setAppointments(appointmentsList);
+          } catch (error) {
+            console.error("Error fetching appointments: ", error);
+          }
+        }
+        fetchappiontments();
+  },[user?.uid,bookingSuccess])
 
   const calculateHealthScore = (vitals) => {
     if (!vitals) return 0;
@@ -246,7 +290,27 @@ export default function ({ user }) {
     return score;
   };
 
-
+  if (dashboardLoading) {
+  return (
+    <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-background/80 backdrop-blur-md">
+      <div className="relative flex items-center justify-center">
+        {/* نبض خارجي كأنه ضربات قلب */}
+        <div className="absolute h-24 w-24 animate-ping rounded-full bg-primary/20"></div>
+        
+        {/* الدائرة الدوارة */}
+        <Loader2 className="h-12 w-12 animate-spin text-primary" strokeWidth={2.5} />
+      </div>
+      
+      {/* نص توضيحي */}
+      <h2 className="mt-6 text-xl font-semibold tracking-tight text-foreground">
+        Medora
+      </h2>
+      <p className="mt-2 animate-pulse text-sm text-muted-foreground">
+        جاري التحقق من البيانات...
+      </p>
+    </div>
+  );
+}
 
 
 
@@ -265,11 +329,11 @@ export default function ({ user }) {
           </div>
           <div className="hidden sm:flex items-center gap-3">
             <div className="text-center px-6 py-3 rounded-xl bg-white/10">
-              <p className="text-2xl font-bold text-white">2</p>
+              <p className="text-2xl font-bold text-white">{user?.stats.upcoming}</p>
               <p className="text-xs text-white/70">Upcoming</p>
             </div>
             <div className="text-center px-6 py-3 rounded-xl bg-white/10">
-              <p className="text-2xl font-bold text-white">3</p>
+              <p className="text-2xl font-bold text-white">{user?.stats.completed}</p>
               <p className="text-xs text-white/70">Past Visits</p>
             </div>
           </div>
@@ -315,21 +379,21 @@ export default function ({ user }) {
               <div className="rounded-2xl bg-card border border-border shadow-card p-6">
                 <h3 className="font-semibold text-foreground mb-4">Recent Appointments</h3>
                 <div className="space-y-3">
-                  {appointments.slice(0, 3).map((apt, i) => (
-                    <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-muted/50 hover:bg-muted transition-colors">
+                  {appointments.map((app) => (
+                    <div key={app.id} className="flex items-center justify-between p-3 rounded-xl bg-muted/50 hover:bg-muted transition-colors">
                       <div className="flex items-center gap-3">
                         <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">
                           <Stethoscope className="h-4 w-4 text-primary" />
                         </div>
                         <div>
-                          <p className="text-sm font-semibold text-foreground">{apt.doctor}</p>
-                          <p className="text-xs text-muted-foreground">{apt.specialty}</p>
+                          <p className="text-sm font-semibold text-foreground">{app.doctorName}</p>
+                          <p className="text-xs text-muted-foreground">{app.specialty}</p>
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="text-xs font-medium text-foreground">{apt.date} · {apt.time}</p>
-                        <Badge variant={apt.status === "Upcoming" ? "default" : "secondary"} className="text-xs mt-1">
-                          {apt.status}
+                        <p className="text-xs font-medium text-foreground">{app.date} · {app.timeSlot}</p>
+                        <Badge variant={app.status === "Upcoming" ? "default" : "secondary"} className="text-xs mt-1">
+                          {app.status}
                         </Badge>
                       </div>
                     </div>
@@ -558,9 +622,10 @@ export default function ({ user }) {
                     <button
                       key={date.toISOString()}
                       onClick={() => {
-                        setSelectedDay(date)
-                        setIsLoadingSlots(true);
-                        setbookedSlots([]);
+                        if (date.toDateString() != selectedDay?.toDateString()) {
+                          setSelectedDay(date)
+                          setIsLoadingSlots(true);
+                        }
                       }}
                       className={`aspect-square rounded-xl text-sm font-medium flex flex-col items-center justify-center gap-1 transition-all ${isSelected
                         ? "bg-gradient-hero text-primary-foreground"
@@ -651,19 +716,19 @@ export default function ({ user }) {
               <h3 className="font-semibold text-lg text-foreground">Medical History</h3>
             </div>
             <div className="divide-y divide-border">
-              {appointments.map((apt, i) => (
-                <div key={i} className="flex items-center justify-between p-5 hover:bg-muted/30 transition-colors">
+              {appointments.map((apt) => (
+                <div key={apt.id} className="flex items-center justify-between p-5 hover:bg-muted/30 transition-colors">
                   <div className="flex items-center gap-4">
                     <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
                       <FileText className="h-5 w-5 text-primary" />
                     </div>
                     <div>
-                      <p className="font-semibold text-sm text-foreground">{apt.doctor}</p>
+                      <p className="font-semibold text-sm text-foreground">{apt.doctorName}</p>
                       <p className="text-xs text-muted-foreground">{apt.specialty}</p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-medium text-foreground">{apt.date} · {apt.time}</p>
+                    <p className="text-sm font-medium text-foreground">{apt.date} · {apt.timeSlot}</p>
                     <Badge variant={apt.status === "Upcoming" ? "default" : "secondary"} className="text-xs mt-1">
                       {apt.status}
                     </Badge>
