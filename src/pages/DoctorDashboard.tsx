@@ -1,19 +1,22 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Calendar, Users, FileText, Clock, CheckCircle2, ChevronRight, Brain, AlertCircle, Activity, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import Navbar from "@/components/Navbar";
 import AIChatbot from "@/components/AIChatbot";
+import { collection, query, where, getDocs } from "firebase/firestore";
+import { db } from "../config/firebase";
+import { useLoading } from "../context/loadingcontext";
 
 type TabType = "overview" | "appointments" | "patients";
 
-const todayAppointments = [
-  { time: "9:00 AM", patient: "John Doe", age: 34, reason: "Follow-up - Chest pain", status: "Completed", aiFlag: false },
-  { time: "10:30 AM", patient: "Emma Wilson", age: 28, reason: "X-ray review - Cough", status: "In Progress", aiFlag: true },
-  { time: "12:00 PM", patient: "Robert Kim", age: 56, reason: "Respiratory assessment", status: "Upcoming", aiFlag: true },
-  { time: "2:00 PM", patient: "Aisha Patel", age: 41, reason: "Post-op checkup", status: "Upcoming", aiFlag: false },
-  { time: "4:30 PM", patient: "Carlos Ruiz", age: 22, reason: "Breathing difficulties", status: "Upcoming", aiFlag: true },
-];
+// const todayAppointments = [
+//   { time: "9:00 AM", patient: "John Doe", age: 34, reason: "Follow-up - Chest pain", status: "Completed", aiFlag: false },
+//   { time: "10:30 AM", patient: "Emma Wilson", age: 28, reason: "X-ray review - Cough", status: "In Progress", aiFlag: true },
+//   { time: "12:00 PM", patient: "Robert Kim", age: 56, reason: "Respiratory assessment", status: "Upcoming", aiFlag: true },
+//   { time: "2:00 PM", patient: "Aisha Patel", age: 41, reason: "Post-op checkup", status: "Upcoming", aiFlag: false },
+//   { time: "4:30 PM", patient: "Carlos Ruiz", age: 22, reason: "Breathing difficulties", status: "Upcoming", aiFlag: true },
+// ];
 
 const patientRecords = [
   {
@@ -45,15 +48,65 @@ const patientRecords = [
   },
 ];
 
-export default function DoctorDashboard({user}) {
+export default function DoctorDashboard({ user }) {
   const [activeTab, setActiveTab] = useState<TabType>("overview");
   const [selectedPatient, setSelectedPatient] = useState<string | null>(null);
+  const [appointments, setAppointments] = useState<any[]>([]);
+  const [todayappointment, settodatappointment] = useState<any[]>([]);
+  const [patientsCount, setPatientsCount] = useState<number>(0);
+  const [todayPatientsCount, setTodayPatientsCount] = useState<number>(0);
+  const options: Intl.DateTimeFormatOptions = {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  };
 
   const navItems: { id: TabType; label: string }[] = [
     { id: "overview", label: "Overview" },
     { id: "appointments", label: "Appointments" },
     { id: "patients", label: "Patient Records" },
   ];
+
+  useEffect(() => {
+
+    const fetchDoctordata = async () => {
+      try {
+        const q = query(
+          collection(db, "appointments"),
+          where("doctorId", "==", user.uid)
+        );
+        const querySnapshot = await getDocs(q);
+        const appointmentsList: any[] = [];
+        const today: any[] = [];
+        const uniquePatientIds = new Set<string>();
+        let todayCount = 0;
+        const todayString = new Date().toISOString().split('T')[0];
+        querySnapshot.forEach((doc) => {
+          const data = doc.data();
+          appointmentsList.push({ id: doc.id, ...data });
+          if (data.patientId) {
+            uniquePatientIds.add(data.patientId);
+          }
+          console.log("fssssssssssssssssssssssssssss: ", doc.id);
+          if (data.date === todayString && data.status !== "cancelled") {
+            todayCount++;
+            today.push({ id: doc.id, ...data });
+          }
+        });
+
+        setAppointments(appointmentsList);
+        setPatientsCount(uniquePatientIds.size);
+        setTodayPatientsCount(todayCount);
+        settodatappointment(today);
+
+      } catch (err) {
+        console.log(err);
+      }
+    }
+    fetchDoctordata();
+  }, [user?.uid]);
+
 
   return (
     <div className="min-h-screen bg-background">
@@ -66,12 +119,12 @@ export default function DoctorDashboard({user}) {
           <div>
             <p className="text-primary-foreground/70 text-sm">Doctor Dashboard</p>
             <h1 className="text-2xl font-heading font-bold text-primary-foreground mt-1"> Dr. {user?.fullname}  </h1>
-            <p className="text-primary-foreground/70 text-sm mt-1">Pulmonologist · Medora General Hospital</p>
+            <p className="text-primary-foreground/70 text-sm mt-1">{user?.specialty} · Medora General Hospital</p>
           </div>
           <div className="hidden sm:flex items-center gap-3">
             {[
-              { label: "Today", val: "5" },
-              { label: "This Week", val: "23" },
+              { label: "Today", val: todayPatientsCount },
+              { label: "This Week", val: patientsCount },
               { label: "AI Flags", val: "3" },
             ].map((s) => (
               <div key={s.label} className="text-center px-5 py-3 rounded-xl bg-white/10">
@@ -88,11 +141,10 @@ export default function DoctorDashboard({user}) {
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                activeTab === item.id
-                  ? "bg-card text-primary shadow-card"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === item.id
+                ? "bg-card text-primary shadow-card"
+                : "text-muted-foreground hover:text-foreground"
+                }`}
             >
               {item.label}
             </button>
@@ -104,12 +156,10 @@ export default function DoctorDashboard({user}) {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
               {/* Stat cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-2 gap-4">
                 {[
-                  { label: "Appointments Today", val: "5", icon: Calendar, color: "bg-medical-blue-light text-medical-blue" },
-                  { label: "Active Patients", val: "142", icon: Users, color: "bg-medical-teal-light text-medical-teal" },
-                  { label: "AI-Flagged Cases", val: "3", icon: Brain, color: "bg-medical-amber-light text-medical-amber" },
-                  { label: "Avg. Rating", val: "4.9★", icon: Star, color: "bg-medical-green-light text-medical-green" },
+                  { label: "Appointments Today", val: todayPatientsCount, icon: Calendar, color: "bg-medical-blue-light text-medical-blue" },
+                  { label: "AI-Flagged Cases", val: "3", icon: Brain, color: "bg-medical-amber-light text-medical-amber" }
                 ].map((s) => (
                   <div key={s.label} className="stat-card bg-card">
                     <div className={`h-10 w-10 rounded-lg flex items-center justify-center mb-3 ${s.color}`}>
@@ -130,21 +180,21 @@ export default function DoctorDashboard({user}) {
                   </Button>
                 </div>
                 <div className="divide-y divide-border">
-                  {todayAppointments.slice(0, 4).map((apt, i) => (
-                    <div key={i} className="flex items-center gap-4 p-4 hover:bg-muted/30 transition-colors">
+                  {todayappointment.map((apt) => (
+                    <div key={apt.id} className="flex items-center gap-4 p-4 hover:bg-muted/30 transition-colors">
                       <div className="text-center w-16 shrink-0">
                         <p className="text-xs font-bold text-primary">{apt.time}</p>
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <p className="text-sm font-semibold text-foreground truncate">{apt.patient}</p>
-                          {apt.aiFlag && (
+                          <p className="text-sm font-semibold text-foreground truncate">{apt.patientName}</p>
+                          {/* {apt.aiFlag && (
                             <span className="h-4 px-1.5 rounded text-[10px] font-bold bg-medical-amber-light text-medical-amber flex items-center gap-0.5">
                               <Brain className="h-2.5 w-2.5" /> AI
                             </span>
-                          )}
+                          )} */}
                         </div>
-                        <p className="text-xs text-muted-foreground truncate">{apt.reason}</p>
+                        {/* <p className="text-xs text-muted-foreground truncate">{apt.reason}</p> */}
                       </div>
                       <Badge
                         variant={apt.status === "Completed" ? "secondary" : apt.status === "In Progress" ? "default" : "outline"}
@@ -192,33 +242,35 @@ export default function DoctorDashboard({user}) {
             <div className="p-6 border-b border-border flex items-center justify-between">
               <div>
                 <h3 className="font-semibold text-lg text-foreground">Today's Appointments</h3>
-                <p className="text-sm text-muted-foreground mt-0.5">Thursday, February 19, 2025</p>
+                <p className="text-sm text-muted-foreground mt-0.5">{new Date().toLocaleDateString('en-US', options)}</p>
               </div>
               <div className="flex items-center gap-2">
                 <Clock className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">5 appointments</span>
+                <span className="text-sm text-muted-foreground">{patientsCount}</span>
               </div>
             </div>
             <div className="divide-y divide-border">
-              {todayAppointments.map((apt, i) => (
-                <div key={i} className="flex items-center gap-4 p-5 hover:bg-muted/30 transition-colors">
+              {appointments.map((apt) => (
+
+                <div key={apt.id} className="flex items-center gap-4 p-5 hover:bg-muted/30 transition-colors">
                   <div className="text-center w-20 shrink-0">
-                    <p className="text-sm font-bold text-primary">{apt.time}</p>
+                    <p className="text-sm font-bold text-primary">{apt.timeSlot}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{apt.date}</p>
                   </div>
                   <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                    <span className="text-sm font-bold text-primary">{apt.patient[0]}</span>
+                    <span className="text-sm font-bold text-primary">{apt.patientName.charAt(0).toUpperCase()}</span>
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <p className="font-semibold text-foreground">{apt.patient}</p>
-                      <span className="text-xs text-muted-foreground">· Age {apt.age}</span>
-                      {apt.aiFlag && (
+                      <p className="font-semibold text-foreground">{apt.patientName}</p>
+                      {/* <span className="text-xs text-muted-foreground">· Age {apt.age}</span> */}
+                      {/* {apt.aiFlag && (
                         <span className="h-5 px-2 rounded-full text-[10px] font-bold bg-medical-amber-light text-medical-amber flex items-center gap-1">
                           <Brain className="h-3 w-3" /> AI Analysis
                         </span>
-                      )}
+                      )} */}
                     </div>
-                    <p className="text-sm text-muted-foreground">{apt.reason}</p>
+                    {/* <p className="text-sm text-muted-foreground">{apt.reason}</p> */}
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
                     <Badge
