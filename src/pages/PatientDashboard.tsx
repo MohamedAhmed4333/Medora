@@ -9,10 +9,11 @@ import { collection, getDoc, getDocs, orderBy, query, where, addDoc, serverTimes
 import { db } from "../config/firebase";
 import { useLoading } from "../context/loadingcontext"
 import { Loader2 } from "lucide-react";
+import { SymptomMultiSelect } from "../components/ui/SymptomMultiSelect";
 
 type TabType = "overview" | "ai-hub" | "results" | "doctors" | "booking" | "history";
 
-const symptoms = ["Fever", "Cough", "Shortness of breath", "Chest pain", "Fatigue", "Headache", "Nausea", "Dizziness"];
+const symptoms = ['anxiety_and_nervousness', 'depression', 'shortness_of_breath', 'depressive_or_psychotic_symptoms', 'sharp_chest_pain', 'dizziness', 'insomnia', 'abnormal_involuntary_movements', 'chest_tightness', 'palpitations', 'irregular_heartbeat', 'hoarse_voice', 'sore_throat', 'difficulty_speaking', 'cough', 'nasal_congestion', 'throat_swelling', 'diminished_hearing', 'lump_in_throat', 'throat_feels_tight', 'difficulty_in_swallowing', 'skin_swelling', 'retention_of_urine', 'groin_mass', 'leg_pain', 'hip_pain', 'suprapubic_pain', 'blood_in_stool', 'lack_of_growth', 'emotional_symptoms', 'elbow_weakness', 'back_weakness', 'symptoms_of_the_scrotum_and_testes', 'swelling_of_scrotum', 'pain_in_testicles', 'flatulence', 'pus_draining_from_ear', 'jaundice', 'mass_in_scrotum', 'white_discharge_from_eye', 'irritable_infant', 'abusing_alcohol', 'fainting', 'hostile_behavior', 'drug_abuse', 'sharp_abdominal_pain', 'feeling_ill', 'vomiting', 'headache', 'nausea', 'diarrhea', 'vaginal_itching', 'vaginal_dryness', 'painful_urination', 'involuntary_urination', 'pain_during_intercourse', 'frequent_urination', 'lower_abdominal_pain', 'vaginal_discharge', 'blood_in_urine', 'hot_flashes', 'intermenstrual_bleeding', 'hand_or_finger_pain', 'wrist_pain', 'hand_or_finger_swelling', 'arm_pain', 'wrist_swelling', 'arm_stiffness_or_tightness', 'arm_swelling', 'hand_or_finger_stiffness_or_tightness', 'wrist_stiffness_or_tightness', 'lip_swelling', 'toothache', 'abnormal_appearing_skin', 'skin_lesion', 'acne_or_pimples', 'dry_lips', 'facial_pain', 'mouth_ulcer', 'skin_growth', 'eye_deviation', 'diminished_vision', 'double_vision', 'cross_eyed', 'symptoms_of_eye', 'pain_in_eye', 'eye_moves_abnormally', 'abnormal_movement_of_eyelid', 'foreign_body_sensation_in_eye', 'irregular_appearing_scalp', 'swollen_lymph_nodes', 'back_pain', 'neck_pain', 'low_back_pain', 'pain_of_the_anus', 'pain_during_pregnancy', 'pelvic_pain', 'impotence', 'infant_spitting_up', 'vomiting_blood', 'regurgitation', 'burning_abdominal_pain', 'restlessness', 'symptoms_of_infants', 'wheezing', 'peripheral_edema', 'neck_mass', 'ear_pain', 'jaw_swelling', 'mouth_dryness', 'neck_swelling', 'knee_pain', 'foot_or_toe_pain', 'bowlegged_or_knock_kneed', 'ankle_pain', 'bones_are_painful', 'knee_weakness', 'elbow_pain', 'knee_swelling', 'skin_moles', 'knee_lump_or_mass', 'weight_gain', 'problems_with_movement', 'knee_stiffness_or_tightness', 'leg_swelling', 'foot_or_toe_swelling', 'heartburn', 'smoking_problems', 'muscle_pain', 'infant_feeding_problem', 'recent_weight_loss', 'problems_with_shape_or_size_of_breast', 'difficulty_eating', 'vaginal_pain', 'vaginal_redness', 'vulvar_irritation', 'weakness', 'decreased_heart_rate', 'increased_heart_rate', 'bleeding_or_discharge_from_nipple', 'ringing_in_ear', 'plugged_feeling_in_ear', 'itchy_ear_s_', 'frontal_headache', 'fluid_in_ear', 'neck_stiffness_or_tightness', 'spots_or_clouds_in_vision', 'eye_redness', 'lacrimation', 'itchiness_of_eye', 'blindness', 'eye_burns_or_stings', 'itchy_eyelid', 'feeling_cold', 'decreased_appetite', 'excessive_appetite', 'excessive_anger', 'loss_of_sensation', 'focal_weakness', 'slurring_words', 'symptoms_of_the_face', 'disturbance_of_memory', 'paresthesia', 'side_pain', 'fever', 'shoulder_pain', 'shoulder_stiffness_or_tightness', 'shoulder_weakness', 'shoulder_swelling', 'tongue_lesions', 'leg_cramps_or_spasms', 'ache_all_over', 'lower_body_pain', 'problems_during_pregnancy', 'spotting_or_bleeding_during_pregnancy', 'cramps_and_spasms', 'upper_abdominal_pain', 'stomach_bloating', 'changes_in_stool_appearance', 'unusual_color_or_odor_to_urine', 'kidney_mass', 'swollen_abdomen', 'symptoms_of_prostate', 'leg_stiffness_or_tightness', 'difficulty_breathing', 'rib_pain', 'joint_pain', 'muscle_stiffness_or_tightness', 'hand_or_finger_lump_or_mass', 'chills', 'groin_pain', 'fatigue', 'abdominal_distention', 'regurgitation_1', 'symptoms_of_the_kidneys', 'melena', 'flushing', 'coughing_up_sputum', 'seizures', 'delusions_or_hallucinations', 'pain_or_soreness_of_breast', 'excessive_urination_at_night', 'bleeding_from_eye', 'rectal_bleeding', 'constipation', 'temper_problems', 'coryza', 'wrist_weakness', 'hemoptysis', 'lymphedema', 'skin_on_leg_or_foot_looks_infected', 'allergic_reaction', 'congestion_in_chest', 'muscle_swelling', 'sleepiness', 'apnea', 'abnormal_breathing_sounds', 'blood_clots_during_menstrual_periods', 'absence_of_menstruation', 'pulling_at_ears', 'gum_pain', 'redness_in_ear', 'fluid_retention', 'flu_like_syndrome', 'sinus_congestion', 'painful_sinuses', 'fears_and_phobias', 'recent_pregnancy', 'uterine_contractions', 'burning_chest_pain', 'back_cramps_or_spasms', 'stiffness_all_over', 'muscle_cramps_contractures_or_spasms', 'low_back_cramps_or_spasms', 'back_mass_or_lump', 'nosebleed', 'long_menstrual_periods', 'heavy_menstrual_flow', 'unpredictable_menstruation', 'painful_menstruation', 'infertility', 'frequent_menstruation', 'sweating', 'mass_on_eyelid', 'swollen_eye', 'eyelid_swelling', 'eyelid_lesion_or_rash', 'symptoms_of_bladder', 'irregular_appearing_nails', 'itching_of_skin', 'hurts_to_breath', 'skin_dryness_peeling_scaliness_or_roughness', 'skin_on_arm_or_hand_looks_infected', 'skin_irritation', 'itchy_scalp', 'warts', 'bumps_on_penis', 'too_little_hair', 'foot_or_toe_lump_or_mass', 'skin_rash', 'ankle_swelling', 'drainage_in_throat', 'premenstrual_tension_or_irritability', 'feeling_hot', 'foot_or_toe_stiffness_or_tightness', 'elbow_swelling', 'early_or_late_onset_of_menopause', 'bleeding_from_ear', 'hand_or_finger_weakness', 'low_self_esteem', 'itching_of_the_anus', 'swollen_or_red_tonsils', 'irregular_belly_button', 'lip_sore', 'vulvar_sore', 'hip_stiffness_or_tightness', 'mouth_pain', 'arm_weakness', 'leg_lump_or_mass', 'penis_pain', 'loss_of_sex_drive', 'obsessions_and_compulsions', 'antisocial_behavior', 'neck_cramps_or_spasms', 'poor_circulation', 'thirst', 'sneezing', 'bladder_mass', 'premature_ejaculation', 'leg_weakness', 'penis_redness', 'penile_discharge', 'cloudy_eye', 'arm_lump_or_mass', 'nightmares', 'bleeding_gums', 'pain_in_gums', 'bedwetting', 'diaper_rash', 'lump_or_mass_of_breast', 'vaginal_bleeding_after_menopause', 'postpartum_problems_of_the_breast', 'hesitancy', 'muscle_weakness', 'throat_redness', 'redness_in_or_around_nose', 'wrinkles_on_skin', 'foot_or_toe_weakness', 'hand_or_finger_cramps_or_spasms', 'skin_pain', 'low_urine_output', 'ankle_weakness', 'symptom_count']
 
 const recommendedDoctors = [
   { name: "Dr. Sarah Chen", specialty: "Pulmonologist", rating: 4.9, available: "Today 3:00 PM", exp: "12 yrs", icon: Activity },
@@ -61,6 +62,7 @@ export default function ({ user }) {
   const [isLoadingSlots, setIsLoadingSlots] = useState(false);
   const [appointments, setAppointments] = useState<any[]>([]);
   const [dashboardLoading, setDashboardLoading] = useState(true);
+  const [aiResults, setAiResults] = useState<any[]>([]);
 
   function generateTimeSlots(startTime: string, endTime: string, intervalMinutes: number): string[] {
     // setIsLoadingSlots(true);
@@ -91,14 +93,37 @@ export default function ({ user }) {
     setSelectedSymptoms((prev) => prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]);
   };
 
-  const handleAnalyze = () => {
+  const handleAnalyze = async () => {
+    if (selectedSymptoms.length === 0) {
+      alert("Please select at least one symptom first!");
+      return;
+    }
     setIsAnalyzing(true);
     setShowResults(false);
-    setTimeout(() => {
+    try {
+      const symptomsVector = symptoms.map(symptom =>
+        selectedSymptoms.includes(symptom) ? 1 : 0
+      );
+      const response = await fetch('http://127.0.0.1:8000/predict', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ symptoms: symptomsVector }),
+      });
+      const data = await response.json();
+      if (data.status === 'success') {
+        setAiResults(data.predictions);
+      }
+
+    } catch (error) {
+      console.error("Failed to connect to AI server:", error);
+    }
+    finally {
       setIsAnalyzing(false);
       setShowResults(true);
       setActiveTab("results");
-    }, 4000);
+    }
   };
 
   const handleBook = async () => {
@@ -209,10 +234,10 @@ export default function ({ user }) {
           }
         }
 
-       await Promise.all([
-        fetchSubcollection(),
-        fetchDoctors()
-      ]);
+        await Promise.all([
+          fetchSubcollection(),
+          fetchDoctors()
+        ]);
 
 
       } catch (error) {
@@ -225,28 +250,28 @@ export default function ({ user }) {
   }, [user?.uid])
 
   useEffect(() => {
-     const fetchappiontments = async () => {
-          try {
-            const q = query(
-              collection(db, "appointments"),
-              where("patientId", "==", user.uid)
-            );
-            const querySnapshot = await getDocs(q);
-            const appointmentsList: any[] = [];
-            querySnapshot.forEach((doc) => {
-              appointmentsList.push({
-                id: doc.id,
-                ...doc.data()
-              });
-            });
-            appointmentsList.sort((a, b) => b.createdAt?.seconds - a.createdAt?.seconds);
-            setAppointments(appointmentsList);
-          } catch (error) {
-            console.error("Error fetching appointments: ", error);
-          }
-        }
-        fetchappiontments();
-  },[user?.uid,bookingSuccess])
+    const fetchappiontments = async () => {
+      try {
+        const q = query(
+          collection(db, "appointments"),
+          where("patientId", "==", user.uid)
+        );
+        const querySnapshot = await getDocs(q);
+        const appointmentsList: any[] = [];
+        querySnapshot.forEach((doc) => {
+          appointmentsList.push({
+            id: doc.id,
+            ...doc.data()
+          });
+        });
+        appointmentsList.sort((a, b) => b.createdAt?.seconds - a.createdAt?.seconds);
+        setAppointments(appointmentsList);
+      } catch (error) {
+        console.error("Error fetching appointments: ", error);
+      }
+    }
+    fetchappiontments();
+  }, [user?.uid, bookingSuccess])
 
   const calculateHealthScore = (vitals) => {
     if (!vitals) return 0;
@@ -291,26 +316,26 @@ export default function ({ user }) {
   };
 
   if (dashboardLoading) {
-  return (
-    <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-background/80 backdrop-blur-md">
-      <div className="relative flex items-center justify-center">
-        {/* نبض خارجي كأنه ضربات قلب */}
-        <div className="absolute h-24 w-24 animate-ping rounded-full bg-primary/20"></div>
-        
-        {/* الدائرة الدوارة */}
-        <Loader2 className="h-12 w-12 animate-spin text-primary" strokeWidth={2.5} />
+    return (
+      <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-background/80 backdrop-blur-md">
+        <div className="relative flex items-center justify-center">
+          {/* نبض خارجي كأنه ضربات قلب */}
+          <div className="absolute h-24 w-24 animate-ping rounded-full bg-primary/20"></div>
+
+          {/* الدائرة الدوارة */}
+          <Loader2 className="h-12 w-12 animate-spin text-primary" strokeWidth={2.5} />
+        </div>
+
+        {/* نص توضيحي */}
+        <h2 className="mt-6 text-xl font-semibold tracking-tight text-foreground">
+          Medora
+        </h2>
+        <p className="mt-2 animate-pulse text-sm text-muted-foreground">
+          جاري التحقق من البيانات...
+        </p>
       </div>
-      
-      {/* نص توضيحي */}
-      <h2 className="mt-6 text-xl font-semibold tracking-tight text-foreground">
-        Medora
-      </h2>
-      <p className="mt-2 animate-pulse text-sm text-muted-foreground">
-        جاري التحقق من البيانات...
-      </p>
-    </div>
-  );
-}
+    );
+  }
 
 
 
@@ -459,23 +484,16 @@ export default function ({ user }) {
             <div className="rounded-2xl bg-card border border-border shadow-card p-6">
               <h3 className="font-semibold text-lg text-foreground mb-2">Symptom Checker</h3>
               <p className="text-sm text-muted-foreground mb-4">Select all symptoms you are experiencing.</p>
-              <div className="flex flex-wrap gap-2 mb-6">
-                {symptoms.map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => toggleSymptom(s)}
-                    className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all ${selectedSymptoms.includes(s)
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "bg-muted border-border text-muted-foreground hover:border-primary/40 hover:text-primary"
-                      }`}
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
+
+              <SymptomMultiSelect
+                symptoms={symptoms}
+                selectedSymptoms={selectedSymptoms}
+                onChange={setSelectedSymptoms}
+              />
+
               <textarea
                 placeholder="Describe additional symptoms or medical history..."
-                className="w-full h-24 rounded-xl bg-muted/50 border border-border p-3 text-sm resize-none focus:outline-none focus:border-medical-teal transition-colors"
+                className="w-full h-24 rounded-xl bg-muted/50 border border-border p-3 text-sm resize-none focus:outline-none focus:border-medical-teal transition-colors mt-4"
               />
             </div>
 
@@ -523,23 +541,44 @@ export default function ({ user }) {
                   {/* Conditions */}
                   <div className="rounded-2xl bg-card border border-border shadow-card p-6">
                     <h3 className="font-semibold text-lg text-foreground mb-4">Detected Conditions</h3>
-                    {[
-                      { name: "Pneumonia (Bacterial)", probability: 72, severity: "Moderate", color: "bg-medical-amber" },
-                      { name: "Acute Bronchitis", probability: 45, severity: "Mild", color: "bg-medical-teal" },
-                      { name: "Common Cold", probability: 28, severity: "Mild", color: "bg-medical-green" },
-                    ].map((c) => (
-                      <div key={c.name} className="mb-4 last:mb-0">
+                    {aiResults.map((item, index) => {
+                      const numericConfidence = parseFloat(item.confidence.replace('%', ''));
+                      let severity = "Low Risk";
+                      let severityColor = "text-green-600 bg-green-50 dark:bg-green-950/30";
+                      
+                      if (numericConfidence > 70) {
+                        severity = "High Risk";
+                        severityColor = "text-destructive bg-destructive/10";
+                      } else if (numericConfidence > 30) {
+                        severity = "Moderate Risk";
+                        severityColor = "text-amber-600 bg-amber-50 dark:bg-amber-950/30";
+                      }
+                      return (<div key={index} className="mb-4 last:mb-0">
                         <div className="flex items-center justify-between mb-1.5">
-                          <span className="text-sm font-medium text-foreground">{c.name}</span>
-                          <span className="text-sm font-bold text-foreground">{c.probability}%</span>
+                          <span className="text-sm font-medium text-foreground capitalize">
+                            {item.disease.replace(/_/g, ' ')}
+                          </span>
+                          <span className="text-sm font-bold text-foreground">
+                            {item.confidence}
+                          </span>
                         </div>
+
                         <div className="h-2 rounded-full bg-muted overflow-hidden">
-                          <div className={`h-full rounded-full transition-all ${c.color}`} style={{ width: `${c.probability}%` }} />
+                          <div
+                            className="h-full rounded-full bg-medical-teal transition-all duration-500 ease-out"
+                            style={{ width: `${numericConfidence}%` }}
+                          />
                         </div>
-                        <p className="text-xs text-muted-foreground mt-1">Severity: {c.severity}</p>
-                      </div>
-                    ))}
+                        <div className="mt-1.5">
+                          <span className={`inline-block text-[10px] px-2 py-0.5 rounded-full font-medium ${severityColor}`}>
+                            Severity: {severity}
+                          </span>
+                        </div>
+                      </div>)
+                    }
+                    )}
                   </div>
+
 
                   {/* AI Guidance */}
                   <div className="rounded-2xl bg-card border border-border shadow-card p-6">
