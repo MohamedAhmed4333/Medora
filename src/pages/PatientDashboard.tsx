@@ -8,7 +8,7 @@ import AIProcessingAnimation from "@/components/AIProcessingAnimation";
 import { collection, getDoc, getDocs, orderBy, query, where, addDoc, serverTimestamp, doc, runTransaction, increment } from "firebase/firestore";
 import { db } from "../config/firebase";
 import { useLoading } from "../context/loadingcontext"
-import { Loader2 } from "lucide-react";
+import { Loader2, ImageOff } from "lucide-react";
 import { SymptomMultiSelect } from "../components/ui/SymptomMultiSelect";
 
 type TabType = "overview" | "ai-hub" | "results" | "doctors" | "booking" | "history";
@@ -44,7 +44,65 @@ const generateCalendarDays = (numDays: number = 7) => {
 };
 
 
+interface X_rayApiResponse {
+  status: string;
+  results: string[];
+}
+interface MriApiResponse {
+  status: string;
+  results: string[];
+  confidence: number;
+}
 
+interface RadiologyResultCardProps {
+  title: string;
+  disease: string;
+  isNormal: boolean;
+  confidence?: number; // نسبة مئوية، مثلاً 92 -> هتظهر كـ 92%
+}
+
+function RadiologyResultCard({
+  title,
+  disease,
+  isNormal,
+  confidence,
+}: RadiologyResultCardProps) {
+  return (
+    <div className="rounded-xl bg-muted/50 p-4">
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+          {title}
+        </span>
+        <span
+          className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${isNormal
+            ? "text-green-600 bg-green-50 dark:bg-green-950/30"
+            : "text-destructive bg-destructive/10"
+            }`}
+        >
+          {isNormal ? "Normal" : "Abnormal"}
+        </span>
+      </div>
+
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <div
+            className={`h-2.5 w-2.5 rounded-full ${isNormal ? "bg-green-500" : "bg-destructive"
+              }`}
+          />
+          <span className="text-sm font-medium text-foreground capitalize">
+            {disease.replace(/_/g, " ")}
+          </span>
+        </div>
+
+        {confidence !== undefined && (
+          <span className="text-xs font-semibold text-muted-foreground">
+            {confidence}%
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
 export default function ({ user }) {
   const [activeTab, setActiveTab] = useState<TabType>("overview");
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
@@ -63,6 +121,10 @@ export default function ({ user }) {
   const [appointments, setAppointments] = useState<any[]>([]);
   const [dashboardLoading, setDashboardLoading] = useState(true);
   const [aiResults, setAiResults] = useState<any[]>([]);
+  const [xrayFile, setXrayFile] = useState<File | null>(null);
+  const [mriFile, setMriFile] = useState<File | null>(null);
+  const [predictionResult, setPredictionResult] = useState<X_rayApiResponse | null>(null);
+  const [mriResult, setMriResult] = useState<MriApiResponse | null>(null);
 
   function generateTimeSlots(startTime: string, endTime: string, intervalMinutes: number): string[] {
     // setIsLoadingSlots(true);
@@ -94,32 +156,65 @@ export default function ({ user }) {
   };
 
   const handleAnalyze = async () => {
-    if (selectedSymptoms.length === 0) {
-      alert("Please select at least one symptom first!");
-      return;
-    }
     setIsAnalyzing(true);
     setShowResults(false);
+
     try {
-      const symptomsVector = symptoms.map(symptom =>
-        selectedSymptoms.includes(symptom) ? 1 : 0
-      );
-      const response = await fetch('http://127.0.0.1:8000/predict', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ symptoms: symptomsVector }),
-      });
-      const data = await response.json();
-      if (data.status === 'success') {
-        setAiResults(data.predictions);
+
+      if (selectedSymptoms.length > 0) {
+        const symptomsVector = symptoms.map(symptom =>
+          selectedSymptoms.includes(symptom) ? 1 : 0
+        );
+
+        const response = await fetch('http://127.0.0.1:8000/predict', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ symptoms: symptomsVector }),
+        });
+
+        const data = await response.json();
+        if (data.status === 'success') {
+          setAiResults(data.predictions);
+        }
+      }
+
+
+      if (xrayFile !== null) {
+        const formData = new FormData();
+        formData.append("file", xrayFile);
+
+        const xrayResponse = await fetch("http://127.0.0.1:8000/predict-xray", {
+          method: "POST",
+          body: formData,
+        });
+
+        const xrayData = await xrayResponse.json();
+        console.log("API RESPONSE:", xrayData);
+        if (xrayData.status === "success") {
+          setPredictionResult(xrayData);
+        }
+      }
+
+      if (mriFile !== null) {
+        const formData = new FormData();
+        formData.append("file", mriFile);
+
+        const mriResponse = await fetch("http://127.0.0.1:8000/predict-mri", {
+          method: "POST",
+          body: formData,
+        });
+
+        const mriData = await mriResponse.json();
+        if (mriData.status === "success") {
+          setMriResult(mriData);
+        }
       }
 
     } catch (error) {
       console.error("Failed to connect to AI server:", error);
-    }
-    finally {
+    } finally {
       setIsAnalyzing(false);
       setShowResults(true);
       setActiveTab("results");
@@ -458,26 +553,74 @@ export default function ({ user }) {
         {/* AI HUB */}
         {activeTab === "ai-hub" && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Image upload */}
+
+            {/* Image upload section */}
             <div className="rounded-2xl bg-card border border-border shadow-card p-6">
-              <h3 className="font-semibold text-lg text-foreground mb-2">Upload Medical Image</h3>
-              <p className="text-sm text-muted-foreground mb-6">Upload X-ray, MRI, or CT scan for AI analysis.</p>
-              <label className={`flex flex-col items-center justify-center h-48 rounded-xl border-2 border-dashed cursor-pointer transition-all ${uploadedFile ? "border-medical-green bg-medical-green-light" : "border-border hover:border-medical-teal bg-muted/30"}`}>
-                <input type="file" className="hidden" accept="image/*" onChange={(e) => setUploadedFile(e.target.files?.[0]?.name || null)} />
-                {uploadedFile ? (
-                  <>
-                    <CheckCircle2 className="h-10 w-10 text-medical-green mb-2" />
-                    <p className="text-sm font-semibold text-medical-green">File uploaded!</p>
-                    <p className="text-xs text-muted-foreground mt-1">{uploadedFile}</p>
-                  </>
-                ) : (
-                  <>
-                    <Upload className="h-10 w-10 text-muted-foreground mb-2" />
-                    <p className="text-sm font-semibold text-foreground">Click to upload or drag & drop</p>
-                    <p className="text-xs text-muted-foreground mt-1">DICOM, PNG, JPG · Max 50MB</p>
-                  </>
-                )}
-              </label>
+              <h3 className="font-semibold text-lg text-foreground mb-2">Upload Medical Images</h3>
+              <p className="text-sm text-muted-foreground mb-6">Upload X-ray and MRI scans for specialized AI analysis.</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                <div className="space-y-2">
+                  <span className="text-xs font-semibold text-muted-foreground block px-1">X-Ray Image</span>
+                  <label className={`flex flex-col items-center justify-center h-48 rounded-xl border-2 border-dashed cursor-pointer transition-all ${xrayFile ? "border-medical-green bg-medical-green-light/20" : "border-border hover:border-medical-teal bg-muted/30"}`}>
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept="image/*"
+                      onChange={(e) => setXrayFile(e.target.files?.[0] || null)}
+                    />
+                    {xrayFile ? (
+                      <div className="text-center p-4">
+                        <CheckCircle2 className="h-8 w-8 text-medical-green mx-auto mb-2" />
+                        <p className="text-xs font-semibold text-medical-green truncate max-w-[150px]">{xrayFile.name}</p>
+                        <button
+                          onClick={(e) => { e.preventDefault(); setXrayFile(null); }}
+                          className="text-[10px] text-red-500 underline mt-2 block mx-auto hover:text-red-700"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="text-center p-4">
+                        <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                        <p className="text-xs font-semibold text-foreground">Upload X-Ray</p>
+                        <p className="text-[10px] text-muted-foreground mt-1">PNG, JPG up to 50MB</p>
+                      </div>
+                    )}
+                  </label>
+                </div>
+
+                <div className="space-y-2">
+                  <span className="text-xs font-semibold text-muted-foreground block px-1">MRI Scan</span>
+                  <label className={`flex flex-col items-center justify-center h-48 rounded-xl border-2 border-dashed cursor-pointer transition-all ${mriFile ? "border-medical-green bg-medical-green-light/20" : "border-border hover:border-medical-teal bg-muted/30"}`}>
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept="image/*"
+                      onChange={(e) => setMriFile(e.target.files?.[0] || null)}
+                    />
+                    {mriFile ? (
+                      <div className="text-center p-4">
+                        <CheckCircle2 className="h-8 w-8 text-medical-green mx-auto mb-2" />
+                        <p className="text-xs font-semibold text-medical-green truncate max-w-[150px]">{mriFile.name}</p>
+                        <button
+                          onClick={(e) => { e.preventDefault(); setMriFile(null); }}
+                          className="text-[10px] text-red-500 underline mt-2 block mx-auto hover:text-red-700"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="text-center p-4">
+                        <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                        <p className="text-xs font-semibold text-foreground">Upload MRI</p>
+                        <p className="text-[10px] text-muted-foreground mt-1">PNG, JPG up to 50MB</p>
+                      </div>
+                    )}
+                  </label>
+                </div>
+
+              </div>
             </div>
 
             {/* Symptom checker */}
@@ -500,7 +643,7 @@ export default function ({ user }) {
             <div className="lg:col-span-2">
               <Button
                 onClick={handleAnalyze}
-                disabled={isAnalyzing || (!uploadedFile && selectedSymptoms.length === 0)}
+                disabled={isAnalyzing || (!xrayFile && !mriFile && selectedSymptoms.length === 0)}
                 className="w-full h-12 bg-gradient-ai text-primary-foreground font-semibold hover:opacity-90 gap-2"
               >
                 <Brain className="h-5 w-5" />
@@ -538,14 +681,63 @@ export default function ({ user }) {
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Conditions */}
+
+                  <div className="rounded-2xl bg-card border border-border shadow-card p-6">
+                    <h3 className="font-semibold text-lg text-foreground mb-4">Radiology Results</h3>
+
+                    {(() => {
+                      const xrayDisease = predictionResult?.results?.[0] ?? null;
+                      const mriDisease = mriResult?.results?.[0] ?? null;
+                      const mriConf= mriResult?.confidence ?? null;
+
+                      if (!xrayDisease && !mriDisease) {
+                        return (
+                          <div className="flex flex-col items-center justify-center py-10 text-center">
+                            <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-3">
+                              <ImageOff className="h-6 w-6 text-muted-foreground" />
+                            </div>
+                            <p className="text-sm font-medium text-foreground mb-1">No scans analyzed yet</p>
+                            <p className="text-xs text-muted-foreground max-w-[220px]">
+                              Upload an X-Ray or MRI scan to see AI-powered radiology results here.
+                            </p>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="space-y-4">
+                          {/* X-Ray Result */}
+                          {xrayDisease && (
+                            <RadiologyResultCard
+                              title="X-Ray"
+                              disease={xrayDisease}
+                              isNormal={xrayDisease === "normal"}
+                            />
+                          )}
+
+                          {/* MRI Result */}
+                          {mriDisease && (
+
+                            <RadiologyResultCard
+                              title="MRI"
+                              disease={mriDisease}
+                              isNormal={mriDisease === "no_tumor"}
+                              confidence={Number(mriConf.toFixed(5)) * 100}
+                            />
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  {/* Detected Conditions - مكان AI Guidance القديم */}
                   <div className="rounded-2xl bg-card border border-border shadow-card p-6">
                     <h3 className="font-semibold text-lg text-foreground mb-4">Detected Conditions</h3>
                     {aiResults.map((item, index) => {
                       const numericConfidence = parseFloat(item.confidence.replace('%', ''));
                       let severity = "Low Risk";
                       let severityColor = "text-green-600 bg-green-50 dark:bg-green-950/30";
-                      
+
                       if (numericConfidence > 70) {
                         severity = "High Risk";
                         severityColor = "text-destructive bg-destructive/10";
@@ -553,49 +745,30 @@ export default function ({ user }) {
                         severity = "Moderate Risk";
                         severityColor = "text-amber-600 bg-amber-50 dark:bg-amber-950/30";
                       }
-                      return (<div key={index} className="mb-4 last:mb-0">
-                        <div className="flex items-center justify-between mb-1.5">
-                          <span className="text-sm font-medium text-foreground capitalize">
-                            {item.disease.replace(/_/g, ' ')}
-                          </span>
-                          <span className="text-sm font-bold text-foreground">
-                            {item.confidence}
-                          </span>
+                      return (
+                        <div key={index} className="mb-4 last:mb-0">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-sm font-medium text-foreground capitalize">
+                              {item.disease.replace(/_/g, ' ')}
+                            </span>
+                            <span className="text-sm font-bold text-foreground">
+                              {item.confidence}
+                            </span>
+                          </div>
+                          <div className="h-2 rounded-full bg-muted overflow-hidden">
+                            <div
+                              className="h-full rounded-full bg-medical-teal transition-all duration-500 ease-out"
+                              style={{ width: `${numericConfidence}%` }}
+                            />
+                          </div>
+                          <div className="mt-1.5">
+                            <span className={`inline-block text-[10px] px-2 py-0.5 rounded-full font-medium ${severityColor}`}>
+                              Severity: {severity}
+                            </span>
+                          </div>
                         </div>
-
-                        <div className="h-2 rounded-full bg-muted overflow-hidden">
-                          <div
-                            className="h-full rounded-full bg-medical-teal transition-all duration-500 ease-out"
-                            style={{ width: `${numericConfidence}%` }}
-                          />
-                        </div>
-                        <div className="mt-1.5">
-                          <span className={`inline-block text-[10px] px-2 py-0.5 rounded-full font-medium ${severityColor}`}>
-                            Severity: {severity}
-                          </span>
-                        </div>
-                      </div>)
-                    }
-                    )}
-                  </div>
-
-
-                  {/* AI Guidance */}
-                  <div className="rounded-2xl bg-card border border-border shadow-card p-6">
-                    <h3 className="font-semibold text-lg text-foreground mb-4">AI Guidance</h3>
-                    <div className="space-y-3">
-                      {[
-                        { icon: CheckCircle2, text: "Based on your symptoms, seek medical attention within 24-48 hours.", color: "text-medical-green" },
-                        { icon: Activity, text: "Avoid strenuous exercise and get adequate rest.", color: "text-medical-teal" },
-                        { icon: Pill, text: "Stay hydrated and monitor your temperature every 4 hours.", color: "text-primary" },
-                        { icon: AlertCircle, text: "Seek emergency care if breathing becomes severely difficult.", color: "text-medical-red" },
-                      ].map((g, i) => (
-                        <div key={i} className="flex items-start gap-3 p-3 rounded-xl bg-muted/50">
-                          <g.icon className={`h-4 w-4 ${g.color} shrink-0 mt-0.5`} />
-                          <p className="text-sm text-muted-foreground">{g.text}</p>
-                        </div>
-                      ))}
-                    </div>
+                      );
+                    })}
                   </div>
                 </div>
 
