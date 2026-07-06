@@ -111,7 +111,7 @@ export default function DoctorDashboard({ user }) {
   return (
     <div className="min-h-screen bg-background">
       <Navbar user={user} />
-      <AIChatbot />
+      {/* <AIChatbot /> */}
 
       <div className="container py-8">
         {/* Doctor banner */}

@@ -44,7 +44,7 @@ export default function AdminPanel({user}) {
   return (
     <div className="min-h-screen bg-background">
       <Navbar user = {user} />
-      <AIChatbot />
+      {/* <AIChatbot /> */}
 
       <div className="container py-8">
         {/* Admin banner */}

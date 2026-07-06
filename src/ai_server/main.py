@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File,HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import joblib  
@@ -9,6 +9,22 @@ import cv2
 import io
 import threading
 from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
+import os
+import sys
+from dotenv import load_dotenv
+from typing import List, Dict
+
+
+current_dir = os.path.dirname(os.path.abspath(__file__))      
+src_dir = os.path.dirname(current_dir)                         
+project_root = os.path.dirname(src_dir)                         
+env_path = os.path.join(project_root, '.env')                   
+load_dotenv(dotenv_path=env_path)
+
+if not os.getenv("GOOGLE_API_KEY"):
+    raise RuntimeError(f"GOOGLE_API_KEY not found — checked path: {env_path}")
+
+from agent import agent_executor
 
 
 
@@ -114,3 +130,40 @@ async def predict_mri(file: UploadFile = File(...)):
         }
     except Exception as e:
         return {"status": "error", "message": str(e)}
+    
+
+class ChatMessage(BaseModel):
+    patient_id: str
+    user_message: str
+    chat_history: List[Dict[str, str]] = []
+
+
+import traceback
+
+@app.post("/api/chat")
+async def chat_with_agent(data: ChatMessage):
+    try:
+        print("Chat history received:", data.chat_history)  
+        agent_input = {
+            "input": f"[SYSTEM INFO: Current Patient ID is {data.patient_id}] {data.user_message}",
+            "chat_history": data.chat_history
+        }
+        result = agent_executor.invoke(agent_input)
+        
+        output = result.get("output", "")
+
+        if isinstance(output, list):
+            texts = []
+            for item in output:
+                if isinstance(item, dict) and item.get("type") == "text":
+                    texts.append(item.get("text", ""))
+                elif isinstance(item, str):
+                    texts.append(item)
+            output = "".join(texts).strip()
+        elif not isinstance(output, str):
+            output = str(output)
+
+        return {"reply": output}
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))

@@ -73,7 +73,7 @@ export default function Auth() {
 
 return (
   <div className="min-h-screen bg-background flex">
-    <AIChatbot />
+    {/* <AIChatbot /> */}
 
     {/* Left panel */}
     <div className="hidden lg:flex flex-col w-[45%] bg-gradient-hero p-12 relative overflow-hidden">

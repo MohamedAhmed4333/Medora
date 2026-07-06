@@ -3,7 +3,7 @@ import { MessageCircle, X, Send, Bot, Loader2, ChevronDown } from "lucide-react"
 
 interface Message {
   id: number;
-  role: "user" | "ai";
+  role: "user" | "assistant";
   text: string;
   time: string;
 }
@@ -32,51 +32,90 @@ function getAIResponse(text: string): string {
   return aiResponses.default;
 }
 
-export default function AIChatbot() {
+
+interface ChatComponentProps {
+  patientId: string; // جاي من الـ Auth state عندك
+}
+
+export default function AIChatbot({ user }) {
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: 1,
-      role: "ai",
-      text: "👋 Hello! I'm **Medora AI**, your intelligent health assistant. I can help assess your symptoms and guide you to the right specialist. How are you feeling today?",
-      time: "Now",
-    },
-  ]);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
-  const sendMessage = (text: string) => {
-    if (!text.trim()) return;
-    const now = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    const userMsg: Message = { id: Date.now(), role: "user", text: text.trim(), time: now };
-    setMessages((prev) => [...prev, userMsg]);
-    setInput("");
+  const sendMessage = async (eOrText: React.FormEvent | string) => {
+    let userText: string;
+    if (typeof eOrText === "string") {
+      userText = eOrText.trim();
+      if (!userText || isTyping) return;
+    } else {
+      eOrText.preventDefault();
+      if (!input.trim() || isTyping) return;
+      userText = input.trim();
+      setInput("");
+    }
+
+
+    const formattedHistory = messages.map((msg) => ({
+      role: msg.role === "user" ? "user" : "assistant",
+      content: msg.text,
+    }));
+
+    const now = new Date();
+    setMessages((prev) => [...prev, { id: now.getTime(), role: "user", text: userText, time: now.toLocaleTimeString() }]);
     setIsTyping(true);
-    setTimeout(() => {
-      const aiMsg: Message = {
-        id: Date.now() + 1,
-        role: "ai",
-        text: getAIResponse(text),
-        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      };
-      setMessages((prev) => [...prev, aiMsg]);
+
+    try {
+      const response = await fetch("http://127.0.0.1:8000/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          patient_id: user?.uid,
+          user_message: userText,
+          chat_history: formattedHistory,
+        }),
+      });
+
+      if (!response.ok) throw new Error("Server error");
+
+      const data = await response.json();
+
+      const nowAi = new Date();
+      setMessages((prev) => [...prev, { id: nowAi.getTime(), role: "assistant", text: data.reply, time: nowAi.toLocaleTimeString() }]);
+    } catch (error) {
+      console.error("Chat Error:", error);
+      const errorTime = new Date();
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: errorTime.getTime(),
+          role: "assistant",
+          text: "عذراً، واجهت مشكلة في الاتصال بالمساعد الطبي.",
+          time: errorTime.toLocaleTimeString(),
+        },
+      ]);
+    } finally {
       setIsTyping(false);
-    }, 1200 + Math.random() * 600);
+    }
   };
 
   function renderText(text: string) {
+    if (typeof text !== "string") {
+      return String(text ?? "");
+    }
     return text.split(/(\*\*[^*]+\*\*)/).map((part, i) =>
       part.startsWith("**") && part.endsWith("**")
         ? <strong key={i} className="font-semibold">{part.slice(2, -2)}</strong>
         : part
     );
   }
-
   return (
     <>
       {/* Floating button */}
@@ -126,7 +165,7 @@ export default function AIChatbot() {
           <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-card">
             {messages.map((msg) => (
               <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"} gap-2`}>
-                {msg.role === "ai" && (
+                {msg.role === "assistant" && (
                   <div className="h-7 w-7 rounded-full bg-gradient-ai flex items-center justify-center shrink-0 mt-0.5">
                     <Bot className="h-3.5 w-3.5 text-primary-foreground" />
                   </div>

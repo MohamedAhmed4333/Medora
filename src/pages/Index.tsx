@@ -42,7 +42,7 @@ export default function Index({user}) {
   return (
     <div className="min-h-screen bg-background">
       <Navbar user = {user} />
-      <AIChatbot />
+      {/* <AIChatbot /> */}
 
       {/* Hero */}
       <section className="relative overflow-hidden min-h-[90vh] flex items-center">
