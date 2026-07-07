@@ -9,10 +9,9 @@ firebase-admin
 numpy
 joblib
 scikit-learn
-tensorflow
+tensorflow-cpu
 pillow
-opencv-python
-
+opencv-python-headless
 langchain-core
 langchain-classic
 langchain-google-genai
