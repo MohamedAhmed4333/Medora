@@ -140,6 +140,55 @@ class ChatMessage(BaseModel):
 
 import traceback
 
+# @app.post("/api/chat")
+# async def chat_with_agent(data: ChatMessage):
+#     try:
+#         print("Chat history received:", data.chat_history)  
+#         agent_input = {
+#             "input": f"[SYSTEM INFO: Current Patient ID is {data.patient_id}] {data.user_message}",
+#             "chat_history": data.chat_history
+#         }
+#         result = agent_executor.invoke(agent_input)
+        
+#         output = result.get("output", "")
+
+#         if isinstance(output, list):
+#             texts = []
+#             for item in output:
+#                 if isinstance(item, dict) and item.get("type") == "text":
+#                     texts.append(item.get("text", ""))
+#                 elif isinstance(item, str):
+#                     texts.append(item)
+#             output = "".join(texts).strip()
+#         elif not isinstance(output, str):
+#             output = str(output)
+
+#         return {"reply": output}
+#     except Exception as e:
+#         traceback.print_exc()
+#         raise HTTPException(status_code=500, detail=str(e))
+
+import json
+
+def extract_diagnosis(output: str):
+    """يفصل الماركر بتاع التشخيص عن النص العادي"""
+    marker = "[[DIAGNOSIS_READY]]"
+    if marker not in output:
+        return output.strip(), None
+
+    parts = output.split(marker)
+    clean_text = parts[0].strip()
+    diagnosis_data = None
+
+    try:
+        json_part = parts[1].strip()
+        diagnosis_data = json.loads(json_part)
+    except (IndexError, json.JSONDecodeError):
+        diagnosis_data = None
+
+    return clean_text, diagnosis_data
+
+
 @app.post("/api/chat")
 async def chat_with_agent(data: ChatMessage):
     try:
@@ -149,21 +198,120 @@ async def chat_with_agent(data: ChatMessage):
             "chat_history": data.chat_history
         }
         result = agent_executor.invoke(agent_input)
-        
         output = result.get("output", "")
 
         if isinstance(output, list):
-            texts = []
-            for item in output:
-                if isinstance(item, dict) and item.get("type") == "text":
-                    texts.append(item.get("text", ""))
-                elif isinstance(item, str):
-                    texts.append(item)
+            texts = [item.get("text", "") if isinstance(item, dict) else str(item) for item in output]
             output = "".join(texts).strip()
         elif not isinstance(output, str):
             output = str(output)
 
-        return {"reply": output}
+        clean_text, diagnosis_data = extract_diagnosis(output)
+
+        return {
+            "reply": clean_text,
+            "diagnosis_ready": diagnosis_data is not None,
+            "diagnosis_data": diagnosis_data
+        }
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+    
+from firebase_admin import auth, firestore
+
+# Initialize Firestore client (requires Firebase app to be initialized elsewhere in the project)
+db = firestore.client()
+
+from firebase_admin import auth
+import secrets
+
+def create_doctor_account(email: str, fullname: str, specialty: str, slot_duration: str, working_hours: dict) -> dict:
+    try:
+        # 1. اعمل حساب في Firebase Authentication بباسورد مؤقت عشوائي
+        temp_password = secrets.token_urlsafe(12)
+
+        user_record = auth.create_user(
+            email=email,
+            password=temp_password,
+            display_name=fullname,
+        )
+        
+        db.collection("users").document(user_record.uid).set({
+            "uid": user_record.uid,
+            "fullname": fullname,
+            "email": email,
+            "role": "doctor",
+            "specialty": specialty,
+            "slotDuration": slot_duration,
+            "workingHours": working_hours,
+            "createdAt": firestore.SERVER_TIMESTAMP,
+        })
+        return {
+            "status": "success",
+            "uid": user_record.uid,
+        }
+
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+    
+
+from typing import Dict
+
+class WorkingDay(BaseModel):
+    start: str
+    end: str
+
+class CreateDoctorRequest(BaseModel):
+    email: str
+    fullname: str
+    specialty: str
+    slotDuration: str
+    workingHours: Dict[str, WorkingDay]
+
+@app.post("/api/admin/create-doctor")
+async def create_doctor(data: CreateDoctorRequest):
+    working_hours_dict = {
+        day: {"start": wh.start, "end": wh.end}
+        for day, wh in data.workingHours.items()
+    }
+
+    result = create_doctor_account(
+        data.email, data.fullname, data.specialty, data.slotDuration, working_hours_dict
+    )
+    if result["status"] == "error":
+        raise HTTPException(status_code=400, detail=result["message"])
+    return result
+
+def delete_doctor_account(doctor_uid: str) -> dict:
+    try:
+        # هات الحجوزات اللي حالتها "upcoming" أو "cancelled" بس، واسيب "completed" كسجل تاريخي
+        appointments_query = db.collection("appointments").where(
+            "doctorId", "==", doctor_uid
+        ).where("status", "in", ["upcoming", "cancelled"]).stream()
+
+        appointments_list = list(appointments_query)
+
+        batch = db.batch()
+        for appt_doc in appointments_list:
+            batch.delete(appt_doc.reference)
+        batch.commit()
+
+        auth.delete_user(doctor_uid)
+        db.collection("users").document(doctor_uid).delete()
+
+        return {
+            "status": "success",
+            "deleted_appointments_count": len(appointments_list)
+        }
+
+    except auth.UserNotFoundError:
+        return {"status": "error", "message": "Doctor not found in Authentication"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+    
+@app.delete("/api/admin/delete-doctor/{doctor_uid}")
+async def delete_doctor(doctor_uid: str):
+    result = delete_doctor_account(doctor_uid)
+    if result["status"] == "error":
+        raise HTTPException(status_code=400, detail=result["message"])
+    return result

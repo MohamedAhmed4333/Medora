@@ -61,19 +61,19 @@ export default function Navbar( {user}) {
             <>
               <Link to="/patient" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">Dashboard</Link>
               <Link to="/patient#ai-hub" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">AI Diagnostics</Link>
-              <Link to="/patient#booking" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">Appointments</Link>
+              <Link to="/patient#history" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">Appointments</Link>
             </>
           )}
           {user?.role === "doctor" && (
             <>
-              <Link to="/doctor" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">Dashboard</Link>
+              <Link to="/doctor#overview" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">Dashboard</Link>
               <Link to="/doctor#patients" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">Patients</Link>
-              <Link to="/doctor#schedule" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">Schedule</Link>
+              <Link to="/doctor#appointments" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">appointments</Link>
             </>
           )}
           {user?.uid === "EWlEe7Z57kbXbDRNxrZvDdxnYOT2" && (
             <>
-              <Link to="/admin" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">Overview</Link>
+              <Link to="/admin#overview" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">Overview</Link>
               <Link to="/admin#doctors" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">Doctors</Link>
               <Link to="/admin#users" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">Users</Link>
             </>
@@ -85,8 +85,8 @@ export default function Navbar( {user}) {
           {user ? (
             <>
               <button className="relative p-2 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors">
-                <Bell className="h-5 w-5" />
-                <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-medical-teal" />
+                {/* <Bell className="h-5 w-5" /> */}
+                {/* <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-medical-teal" /> */}
               </button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>

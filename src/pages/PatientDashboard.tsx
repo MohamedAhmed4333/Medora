@@ -8,8 +8,9 @@ import AIProcessingAnimation from "@/components/AIProcessingAnimation";
 import { collection, getDoc, getDocs, orderBy, query, where, addDoc, serverTimestamp, doc, runTransaction, increment } from "firebase/firestore";
 import { db } from "../config/firebase";
 import { useLoading } from "../context/loadingcontext"
-import { Loader2, ImageOff } from "lucide-react";
+import { Loader2, ImageOff, Check } from "lucide-react";
 import { SymptomMultiSelect } from "../components/ui/SymptomMultiSelect";
+import { useLocation } from "react-router-dom";
 
 type TabType = "overview" | "ai-hub" | "results" | "doctors" | "booking" | "history";
 
@@ -48,7 +49,7 @@ interface RadiologyResultCardProps {
   title: string;
   disease: string;
   isNormal: boolean;
-  confidence?: number; 
+  confidence?: number;
 }
 
 function RadiologyResultCard({
@@ -115,6 +116,25 @@ export default function ({ user }) {
   const [mriFile, setMriFile] = useState<File | null>(null);
   const [predictionResult, setPredictionResult] = useState<X_rayApiResponse | null>(null);
   const [mriResult, setMriResult] = useState<MriApiResponse | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const location = useLocation();
+  useEffect(() => {
+    const hash = location.hash.replace("#", "");
+    if (hash === "overview" || hash === "ai-hub" || hash === "history") {
+      setActiveTab(hash as TabType);
+    } else {
+      setActiveTab("overview");
+    }
+  }, [location.hash]);
+
+  const handleSaveResults = async () => {
+    setIsSaving(true);
+    try {
+      await saveResults();
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   function generateTimeSlots(startTime: string, endTime: string, intervalMinutes: number): string[] {
     // setIsLoadingSlots(true);
@@ -210,6 +230,52 @@ export default function ({ user }) {
       setActiveTab("results");
     }
   };
+
+  const saveResults = async () => {
+    if (aiResults != null && user?.uid) {
+      try {
+        await addDoc(collection(db, "users", user.uid, "Symptoms"), {
+          createdAt: serverTimestamp(),
+          predictions: {
+            first: aiResults?.[0]?.disease,
+            conf1: aiResults?.[0]?.confidence,
+            second: aiResults?.[1]?.disease,
+            conf2: aiResults?.[1]?.confidence,
+            third: aiResults?.[2]?.disease,
+            conf3: aiResults?.[2]?.confidence
+          }
+        });
+        console.log("تم حفظ الأعراض بنجاح في الفايرستور!");
+      } catch (error) {
+        console.error("حدث خطأ أثناء حفظ الأعراض:", error);
+      }
+    }
+    if (predictionResult != null && user?.uid) {
+      try {
+        await addDoc(collection(db, "users", user.uid, "X_Ray"), {
+          createdAt: serverTimestamp(),
+          predictions: predictionResult?.results?.[0]
+        });
+        console.log("تم حفظ الأعراض بنجاح في الفايرستور!");
+      } catch (error) {
+        console.error("حدث خطأ أثناء حفظ الأعراض:", error);
+      }
+    }
+    if (mriResult != null && user?.uid) {
+      try {
+        await addDoc(collection(db, "users", user.uid, "MRI"), {
+          createdAt: serverTimestamp(),
+          predictions: mriResult?.results?.[0],
+          confidence: mriResult?.confidence
+        });
+        console.log("تم حفظ الأعراض بنجاح في الفايرستور!");
+      } catch (error) {
+        console.error("حدث خطأ أثناء حفظ الأعراض:", error);
+      }
+    }
+
+  };
+
 
   const handleBook = async () => {
     if (!selectedDoctor || !selectedDay || !selectedSlot) return;
@@ -403,6 +469,7 @@ export default function ({ user }) {
   if (dashboardLoading) {
     return (
       <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-background/80 backdrop-blur-md">
+        {user && <AIChatbot user={user} />}
         <div className="relative flex items-center justify-center">
           {/* نبض خارجي كأنه ضربات قلب */}
           <div className="absolute h-24 w-24 animate-ping rounded-full bg-primary/20"></div>
@@ -678,7 +745,7 @@ export default function ({ user }) {
                     {(() => {
                       const xrayDisease = predictionResult?.results?.[0] ?? null;
                       const mriDisease = mriResult?.results?.[0] ?? null;
-                      const mriConf= mriResult?.confidence ?? null;
+                      const mriConf = mriResult?.confidence ?? null;
 
                       if (!xrayDisease && !mriDisease) {
                         return (
@@ -763,11 +830,21 @@ export default function ({ user }) {
                 </div>
 
                 <div className="flex gap-3">
-                  <Button className="bg-gradient-hero text-primary-foreground hover:opacity-90" onClick={() => setActiveTab("doctors")}>
-                    View Recommended Doctors <ChevronRight className="h-4 w-4 ml-1" />
-                  </Button>
-                  <Button variant="outline" onClick={() => setActiveTab("booking")}>
-                    Book Appointment
+                  <Button
+                    className="bg-gradient-hero text-primary-foreground hover:opacity-90"
+                    onClick={handleSaveResults}
+                    disabled={isSaving}
+                  >
+                    {isSaving ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        Save Ai Results for Doctors <ChevronRight className="h-4 w-4 ml-1" />
+                      </>
+                    )}
                   </Button>
                 </div>
               </>
@@ -935,9 +1012,9 @@ export default function ({ user }) {
                       {apt.status}
                     </Badge>
                   </div>
-                  <Button variant="ghost" size="sm" className="ml-4">
+                  {/* <Button variant="ghost" size="sm" className="ml-4">
                     View <ChevronRight className="h-4 w-4 ml-1" />
-                  </Button>
+                  </Button> */}
                 </div>
               ))}
             </div>

@@ -46,26 +46,6 @@ def fetch_patient_medical_record(patient_id: str) -> dict:
         for doc in vitals_query:
             complete_record["latest_vitals"] = doc.to_dict()
 
-    
-        radiology_query = user_ref.collection("radiology_results").order_by("timestamp", direction=firestore.Query.DESCENDING).limit(3).stream()
-        for doc in radiology_query:
-            doc_data = doc.to_dict()
-            complete_record["latest_radiology_results"].append({
-                "scan_type": doc_data.get("scan_type"), # X-Ray or MRI
-                "result": doc_data.get("result"),       # Pneumonia / Normal / Tumor
-                "confidence": doc_data.get("confidence"),
-                "date": doc_data.get("date")
-            })
-
-      
-        symptoms_query = user_ref.collection("symptoms_results").order_by("timestamp", direction=firestore.Query.DESCENDING).limit(3).stream()
-        for doc in symptoms_query:
-            doc_data = doc.to_dict()
-            complete_record["latest_symptoms_ai_results"].append({
-                "predictions": doc_data.get("predictions", []), # مصفوفة الأمراض ونسبها
-                "date": doc_data.get("date")
-            })
-
         return complete_record
 
     except Exception as e:
@@ -89,7 +69,7 @@ def get_all_available_doctors() -> list:
         for doc in results:
             doc_data = doc.to_dict()
             doctors_list.append({
-                "id": doc.uid,
+                "id": doc.id,
                 "name": doc_data.get("fullname"),
                 "specialty": doc_data.get("specialty"),
                 "availability": doc_data.get("workingHours")

@@ -1,11 +1,14 @@
 import { useState, useRef, useEffect } from "react";
-import { MessageCircle, X, Send, Bot, Loader2, ChevronDown } from "lucide-react";
-
+import { MessageCircle, X, Send, Bot, Loader2, ChevronDown, Check, Save } from "lucide-react";
+import { collection, getDoc, getDocs, orderBy, query, where, addDoc, serverTimestamp, doc, runTransaction, increment } from "firebase/firestore";
+import { db } from "../config/firebase";
 interface Message {
   id: number;
   role: "user" | "assistant";
   text: string;
   time: string;
+  diagnosisData?: any;
+  isSaved?: boolean;
 }
 
 const suggestions = [
@@ -88,7 +91,16 @@ export default function AIChatbot({ user }) {
       const data = await response.json();
 
       const nowAi = new Date();
-      setMessages((prev) => [...prev, { id: nowAi.getTime(), role: "assistant", text: data.reply, time: nowAi.toLocaleTimeString() }]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: nowAi.getTime(),
+          role: "assistant",
+          text: data.reply,
+          time: nowAi.toLocaleTimeString(),
+          diagnosisData: data.diagnosis_ready ? data.diagnosis_data : undefined,
+        },
+      ]);
     } catch (error) {
       console.error("Chat Error:", error);
       const errorTime = new Date();
@@ -116,6 +128,22 @@ export default function AIChatbot({ user }) {
         : part
     );
   }
+
+  const handleSaveDiagnosis = async (diagnosisData: any, messageId: number) => {
+    if (!user?.uid) return;
+    try {
+      await addDoc(collection(db, "users", user.uid, "aiAgentDiagnosis"), {
+        ...diagnosisData,
+        createdAt: serverTimestamp(),
+      });
+      setMessages((prev) =>
+        prev.map((m) => (m.id === messageId ? { ...m, isSaved: true } : m))
+      );
+    } catch (error) {
+      console.error("Save diagnosis failed:", error);
+    }
+  };
+
   return (
     <>
       {/* Floating button */}
@@ -175,6 +203,29 @@ export default function AIChatbot({ user }) {
                     <p className="leading-relaxed">{renderText(msg.text)}</p>
                   </div>
                   <p className="text-xs text-muted-foreground mt-1 px-1">{msg.time}</p>
+
+                  {msg.diagnosisData && (
+                    <button
+                      onClick={() => handleSaveDiagnosis(msg.diagnosisData, msg.id)}
+                      disabled={msg.isSaved}
+                      className="mt-2 flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full
+              bg-medical-green/10 text-medical-green border border-medical-green/30
+              hover:bg-medical-green hover:text-white transition-colors duration-200
+              disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-medical-green/10 disabled:hover:text-medical-green"
+                    >
+                      {msg.isSaved ? (
+                        <>
+                          <Check className="h-3.5 w-3.5" />
+                          تم الحفظ
+                        </>
+                      ) : (
+                        <>
+                          <Save className="h-3.5 w-3.5" />
+                          حفظ هذا التشخيص
+                        </>
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
