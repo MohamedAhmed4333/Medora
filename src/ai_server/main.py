@@ -315,3 +315,11 @@ async def delete_doctor(doctor_uid: str):
     if result["status"] == "error":
         raise HTTPException(status_code=400, detail=result["message"])
     return result
+
+
+# أضف هذه الأسطر في نهاية ملف main.py
+if __name__ == "__main__":
+    import uvicorn
+    # Render يخصص البورت في متغير بيئة اسمه PORT
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port)
