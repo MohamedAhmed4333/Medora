@@ -1,0 +1,17 @@
+fastapi
+uvicorn[standard]
+python-multipart
+pydantic
+python-dotenv
+
+firebase-admin
+
+numpy
+joblib
+scikit-learn
+tensorflow-cpu
+pillow
+opencv-python-headless
+langchain-core
+langchain-classic
+langchain-google-genai

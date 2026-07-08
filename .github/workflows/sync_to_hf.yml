@@ -1,0 +1,29 @@
+name: Sync to Hugging Face Spaces
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          # تفعيل تتبع الملفات الكبيرة أثناء تحميل الكود على سيرفر جيت هب
+          lfs: true 
+
+      - name: Install Git LFS
+        run: |
+          git lfs install
+
+      - name: Push to HF
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        # أضفنا سطر يضمن إعداد الـ LFS قبل أمر الـ push لمنع الـ pre-receive hook declined
+        run: |
+          git config --global credential.helper store
+          git lfs pre-push
+          git push --force https://yousef-osama:$HF_TOKEN@huggingface.co/spaces/yousef-osama/medora-backend main
