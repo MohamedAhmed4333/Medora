@@ -195,7 +195,6 @@ export default function DoctorDashboard({ user }) {
             {[
               { label: "Today", val: todayPatientsCount },
               { label: "This Week", val: patientsCount },
-              { label: "AI Flags", val: "3" },
             ].map((s) => (
               <div key={s.label} className="text-center px-5 py-3 rounded-xl bg-white/10">
                 <p className="text-2xl font-bold text-white">{s.val}</p>
@@ -311,7 +310,7 @@ export default function DoctorDashboard({ user }) {
           <div className="rounded-2xl bg-card border border-border shadow-card">
             <div className="p-6 border-b border-border flex items-center justify-between">
               <div>
-                <h3 className="font-semibold text-lg text-foreground">Today's Appointments</h3>
+                <h3 className="font-semibold text-lg text-foreground">Appointments</h3>
                 <p className="text-sm text-muted-foreground mt-0.5">{new Date().toLocaleDateString('en-US', options)}</p>
               </div>
               <div className="flex items-center gap-2">
